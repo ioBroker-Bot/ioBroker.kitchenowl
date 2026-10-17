@@ -1,0 +1,22 @@
+[
+	{
+		"recipe_id": 20,
+		"household_id": 1,
+		"day": 2,
+		"cooking_date": 1700100000000,
+		"yields": 4,
+		"created_at": 1700000300000,
+		"updated_at": 1700000300000,
+		"recipe": { "id": 20, "name": "Tomato Soup", "household_id": 1 }
+	},
+	{
+		"recipe_id": 21,
+		"household_id": 1,
+		"day": -1,
+		"cooking_date": 1700500000000,
+		"yields": null,
+		"created_at": 1700000400000,
+		"updated_at": 1700000400000,
+		"recipe": { "id": 21, "name": "Pancakes", "household_id": 1 }
+	}
+]

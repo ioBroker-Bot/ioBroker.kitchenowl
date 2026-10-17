@@ -1,0 +1,109 @@
+{
+	"items": {
+		"headerServer": {
+			"type": "header",
+			"text": "KitchenOwl server",
+			"size": 2,
+			"newLine": true
+		},
+		"url": {
+			"type": "text",
+			"label": "Server URL",
+			"help": "Base URL of your KitchenOwl instance, without a trailing /api",
+			"placeholder": "https://kitchenowl.example.com",
+			"validator": "!!data.url && /^https?:\\/\\/.+/.test(data.url.trim())",
+			"validatorErrorText": "Please enter a URL starting with http:// or https://",
+			"validatorNoSaveOnError": true,
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 8,
+			"lg": 6,
+			"xl": 6
+		},
+		"token": {
+			"type": "password",
+			"label": "API token",
+			"help": "A long-lived token. Create one in KitchenOwl under Profile -> Settings -> Access tokens.",
+			"repeat": false,
+			"visible": false,
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 8,
+			"lg": 6,
+			"xl": 6
+		},
+		"headerTransport": {
+			"type": "header",
+			"text": "Request handling",
+			"size": 2,
+			"newLine": true
+		},
+		"requestTimeout": {
+			"type": "number",
+			"label": "Request timeout",
+			"unit": "ms",
+			"min": 1000,
+			"max": 120000,
+			"step": 500,
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"retries": {
+			"type": "number",
+			"label": "Retries per request",
+			"min": 0,
+			"max": 10,
+			"step": 1,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"retryDelay": {
+			"type": "number",
+			"label": "Delay between retries",
+			"unit": "ms",
+			"min": 100,
+			"max": 60000,
+			"step": 100,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"rejectUnauthorized": {
+			"type": "checkbox",
+			"label": "Verify TLS certificate",
+			"help": "Disable only if your instance uses a self-signed certificate",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"testConnection": {
+			"type": "sendTo",
+			"label": "Test connection",
+			"command": "testConnection",
+			"jsonData": "{\"url\": \"${data.url}\", \"token\": \"${data.token}\", \"rejectUnauthorized\": ${data.rejectUnauthorized}, \"requestTimeout\": ${data.requestTimeout}}",
+			"showProcess": true,
+			"timeout": 20000,
+			"variant": "contained",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 4,
+			"xl": 4
+		}
+	}
+}

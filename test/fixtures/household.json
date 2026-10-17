@@ -1,0 +1,48 @@
+{
+	"id": 1,
+	"name": "Example Household",
+	"description": null,
+	"language": "en",
+	"link": null,
+	"photo": "household-photo.jpg",
+	"photo_hash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+	"verified": null,
+	"expenses_feature": true,
+	"planner_feature": true,
+	"view_ordering": ["items", "recipes", "expenses"],
+	"created_at": 1700000000000,
+	"updated_at": 1700000100000,
+	"default_shopping_list": {
+		"id": 1,
+		"name": "Groceries",
+		"household_id": 1,
+		"created_at": 1700000000000,
+		"updated_at": 1700000100000
+	},
+	"member": [
+		{
+			"id": 1,
+			"name": "Alice Example",
+			"username": "alice",
+			"admin": true,
+			"owner": true,
+			"expense_balance": 12.3399999999999,
+			"photo": null,
+			"last_seen": 1700000500000,
+			"created_at": 1700000000000,
+			"updated_at": 1700000500000
+		},
+		{
+			"id": 2,
+			"name": "Bob Example",
+			"username": "bob",
+			"admin": false,
+			"owner": false,
+			"expense_balance": -12.3399999999999,
+			"photo": null,
+			"last_seen": 1700000400000,
+			"created_at": 1700000000000,
+			"updated_at": 1700000400000
+		}
+	]
+}

@@ -1,0 +1,144 @@
+{
+	"items": {
+		"headerHouseholds": {
+			"type": "header",
+			"text": "Households",
+			"size": 2,
+			"newLine": true
+		},
+		"householdIds": {
+			"type": "selectSendTo",
+			"label": "Households to synchronize",
+			"help": "Leave empty to synchronize every household the token can see",
+			"command": "getHouseholds",
+			"jsonData": "{\"url\": \"${data.url}\", \"token\": \"${data.token}\", \"rejectUnauthorized\": ${data.rejectUnauthorized}, \"requestTimeout\": ${data.requestTimeout}}",
+			"alsoDependsOn": ["url", "token"],
+			"multiple": true,
+			"manual": true,
+			"noTranslation": true,
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 8,
+			"lg": 6,
+			"xl": 6
+		},
+		"pollInterval": {
+			"type": "number",
+			"label": "Poll interval",
+			"unit": "s",
+			"min": 30,
+			"max": 86400,
+			"step": 10,
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"headerBranches": {
+			"type": "header",
+			"text": "What to synchronize",
+			"size": 2,
+			"newLine": true
+		},
+		"syncMembers": {
+			"type": "checkbox",
+			"label": "Members and expense balances",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"syncShoppingLists": {
+			"type": "checkbox",
+			"label": "Shopping lists",
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"syncRecipes": {
+			"type": "checkbox",
+			"label": "Recipes",
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"syncPlanner": {
+			"type": "checkbox",
+			"label": "Meal planner",
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"syncExpenses": {
+			"type": "checkbox",
+			"label": "Expenses",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"syncCatalog": {
+			"type": "checkbox",
+			"label": "Item catalog, categories and tags",
+			"help": "Stored as JSON states. Can be several hundred entries per household.",
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"headerGranularity": {
+			"type": "header",
+			"text": "Object tree granularity",
+			"size": 2,
+			"newLine": true
+		},
+		"createRecipeObjects": {
+			"type": "checkbox",
+			"label": "Create a state tree per recipe",
+			"help": "If disabled, recipes are only exposed as a single JSON state",
+			"hidden": "!data.syncRecipes",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 4,
+			"xl": 4
+		},
+		"createShoppingItemObjects": {
+			"type": "checkbox",
+			"label": "Create a state tree per shopping list item",
+			"help": "If disabled, list items are only exposed as a single JSON state",
+			"hidden": "!data.syncShoppingLists",
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 4,
+			"xl": 4
+		},
+		"deleteStaleObjects": {
+			"type": "checkbox",
+			"label": "Delete objects that disappeared in KitchenOwl",
+			"help": "Keeps the object tree in sync when lists, recipes or members are removed",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 4,
+			"xl": 4
+		}
+	}
+}

@@ -1,0 +1,238 @@
+{
+  "common": {
+    "name": "kitchenowl",
+    "version": "0.0.1",
+    "news": {
+      "0.0.1": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung",
+        "ru": "Начальная версия",
+        "pt": "lançamento inicial",
+        "nl": "Eerste uitgave",
+        "fr": "Première version",
+        "it": "Versione iniziale",
+        "es": "Versión inicial",
+        "pl": "Pierwsze wydanie",
+        "uk": "Початкова версія",
+        "zh-cn": "首次出版"
+      }
+    },
+    "titleLang": {
+      "en": "KitchenOwl",
+      "de": "KitchenOwl",
+      "ru": "KitchenOwl",
+      "pt": "KitchenOwl",
+      "nl": "KitchenOwl",
+      "fr": "KitchenOwl",
+      "it": "KitchenOwl",
+      "es": "KitchenOwl",
+      "pl": "KitchenOwl",
+      "uk": "KitchenOwl",
+      "zh-cn": "KitchenOwl"
+    },
+    "desc": {
+      "en": "Connects ioBroker to a self-hosted KitchenOwl server: shopping lists, recipes, meal planner, expenses and household balances",
+      "de": "Verbindet ioBroker mit einem selbst gehosteten KitchenOwl-Server: Einkaufslisten, Rezepte, Essensplaner, Ausgaben und Haushaltssalden",
+      "ru": "Подключает ioBroker к локальному серверу KitchenOwl: списки покупок, рецепты, планировщик еды, расходы и семейный баланс.",
+      "pt": "Conecta o ioBroker a um servidor KitchenOwl auto-hospedado: listas de compras, receitas, planejador de refeições, despesas e saldos domésticos",
+      "nl": "Verbindt ioBroker met een zelfgehoste KitchenOwl-server: boodschappenlijstjes, recepten, maaltijdplanner, uitgaven en huishoudsaldi",
+      "fr": "Connecte ioBroker à un serveur KitchenOwl auto-hébergé : listes de courses, recettes, planificateur de repas, dépenses et soldes du ménage",
+      "it": "Connette ioBroker a un server KitchenOwl self-hosted: liste della spesa, ricette, pianificatore dei pasti, spese e bilanci domestici",
+      "es": "Conecta ioBroker a un servidor KitchenOwl autohospedado: listas de compras, recetas, planificador de comidas, gastos y saldos del hogar.",
+      "pl": "Łączy ioBroker z własnym serwerem KitchenOwl: listy zakupów, przepisy, plan posiłków, wydatki i salda gospodarstwa domowego",
+      "uk": "Підключає ioBroker до самостійного сервера KitchenOwl: списки покупок, рецепти, планувальник їжі, витрати та домашні залишки",
+      "zh-cn": "将 ioBroker 连接到自托管 KitchenOwl 服务器：购物清单、食谱、膳食计划、费用和家庭余额"
+    },
+    "authors": [
+      "Fabian Ihle <fabian.ihle@uni-tuebingen.de>"
+    ],
+    "keywords": [
+      "kitchenowl",
+      "shopping list",
+      "groceries",
+      "recipes",
+      "meal planner",
+      "expenses",
+      "household"
+    ],
+    "licenseInformation": {
+      "type": "free",
+      "license": "MIT"
+    },
+    "platform": "Javascript/Node.js",
+    "icon": "kitchenowl.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/n1tr0-5urf3r/ioBroker.kitchenowl/master/admin/kitchenowl.png",
+    "readme": "https://github.com/n1tr0-5urf3r/ioBroker.kitchenowl/blob/master/README.md",
+    "loglevel": "info",
+    "tier": 3,
+    "mode": "daemon",
+    "type": "household",
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "poll",
+    "adminUI": {
+      "config": "json"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "admin": ">=7.4.9"
+      }
+    ],
+    "messagebox": true
+  },
+  "native": {
+    "url": "",
+    "token": "",
+    "rejectUnauthorized": true,
+    "requestTimeout": 10000,
+    "retries": 2,
+    "retryDelay": 2000,
+    "householdIds": [],
+    "pollInterval": 300,
+    "syncMembers": true,
+    "syncShoppingLists": true,
+    "syncRecipes": true,
+    "syncPlanner": true,
+    "syncExpenses": true,
+    "syncCatalog": false,
+    "createRecipeObjects": true,
+    "createShoppingItemObjects": true,
+    "deleteStaleObjects": true,
+    "expenseOverviewFrame": 2,
+    "expenseOverviewSteps": 5,
+    "expenseView": 0,
+    "expensePages": 1,
+    "enableWrite": false,
+    "writeRefreshDelay": 1500
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": {
+          "en": "Information",
+          "de": "Information"
+        }
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "Device or service connected",
+          "de": "Gerät oder Dienst verbunden"
+        },
+        "type": "boolean",
+        "role": "indicator.connected",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastUpdate",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "Timestamp of the last successful poll",
+          "de": "Zeitpunkt des letzten erfolgreichen Abrufs"
+        },
+        "type": "number",
+        "role": "value.time",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.lastError",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "Message of the last failed poll",
+          "de": "Meldung des letzten fehlgeschlagenen Abrufs"
+        },
+        "type": "string",
+        "role": "text",
+        "read": true,
+        "write": false,
+        "def": ""
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.serverVersion",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "KitchenOwl backend version",
+          "de": "KitchenOwl-Backend-Version"
+        },
+        "type": "number",
+        "role": "value",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.minFrontendVersion",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "Minimum frontend version required by the server",
+          "de": "Vom Server geforderte Mindest-Frontend-Version"
+        },
+        "type": "number",
+        "role": "value",
+        "read": true,
+        "write": false
+      },
+      "native": {}
+    },
+    {
+      "_id": "commands",
+      "type": "channel",
+      "common": {
+        "name": {
+          "en": "Adapter commands",
+          "de": "Adapterbefehle"
+        }
+      },
+      "native": {}
+    },
+    {
+      "_id": "commands.refresh",
+      "type": "state",
+      "common": {
+        "name": {
+          "en": "Trigger an immediate poll",
+          "de": "Sofortigen Abruf auslösen"
+        },
+        "type": "boolean",
+        "role": "button",
+        "read": false,
+        "write": true
+      },
+      "native": {}
+    }
+  ],
+  "encryptedNative": [
+    "token"
+  ],
+  "protectedNative": [
+    "token",
+    "url"
+  ]
+}

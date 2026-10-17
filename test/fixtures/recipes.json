@@ -1,0 +1,41 @@
+[
+	{
+		"id": 20,
+		"name": "Tomato Soup",
+		"household_id": 1,
+		"description": "A simple soup for cold evenings.",
+		"photo": "soup.jpg",
+		"time": 45,
+		"prep_time": 15,
+		"cook_time": 30,
+		"yields": 4,
+		"source": "https://example.invalid/tomato-soup",
+		"visibility": 0,
+		"planned": true,
+		"planned_days": [2],
+		"planned_cooking_dates": [1700100000000],
+		"tags": [{ "id": 30, "name": "soup", "household_id": 1 }],
+		"items": [
+			{ "id": 13, "name": "Tomatoes", "household_id": 1, "description": "500 g", "optional": false },
+			{ "id": 14, "name": "Cream", "household_id": 1, "description": "100 ml", "optional": true }
+		]
+	},
+	{
+		"id": 21,
+		"name": "Pancakes",
+		"household_id": 1,
+		"description": "",
+		"photo": null,
+		"time": 20,
+		"prep_time": 10,
+		"cook_time": 10,
+		"yields": 2,
+		"source": "",
+		"visibility": 0,
+		"planned": false,
+		"planned_days": [],
+		"planned_cooking_dates": [],
+		"tags": [],
+		"items": []
+	}
+]

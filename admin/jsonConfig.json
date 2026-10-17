@@ -1,0 +1,26 @@
+{
+	"i18n": true,
+	"type": "tabs",
+	"items": {
+		"tabConnection": {
+			"type": "panel",
+			"label": "Connection",
+			"#include": "connection.jsonConfig.json"
+		},
+		"tabSync": {
+			"type": "panel",
+			"label": "Households and sync",
+			"#include": "sync.jsonConfig.json"
+		},
+		"tabExpenses": {
+			"type": "panel",
+			"label": "Expenses",
+			"#include": "expenses.jsonConfig.json"
+		},
+		"tabWrite": {
+			"type": "panel",
+			"label": "Write access",
+			"#include": "write.jsonConfig.json"
+		}
+	}
+}

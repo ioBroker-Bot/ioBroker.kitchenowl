@@ -1,0 +1,48 @@
+[
+	{
+		"id": 1,
+		"name": "Groceries",
+		"household_id": 1,
+		"created_at": 1700000000000,
+		"updated_at": 1700000100000,
+		"items": [
+			{
+				"id": 10,
+				"name": "Bread",
+				"household_id": 1,
+				"icon": "bread",
+				"category_id": 5,
+				"description": "2 loaves",
+				"created_by": 1,
+				"category": {
+					"id": 5,
+					"name": "Bakery",
+					"household_id": 1,
+					"ordering": 0,
+					"default": false,
+					"default_key": null
+				}
+			},
+			{
+				"id": 11,
+				"name": "Milk",
+				"household_id": 1,
+				"icon": "milk",
+				"category_id": null,
+				"description": "",
+				"created_by": 2,
+				"category": null
+			}
+		],
+		"recentItems": [{ "id": 12, "name": "Butter", "household_id": 1, "category_id": null }]
+	},
+	{
+		"id": 2,
+		"name": "Hardware store",
+		"household_id": 1,
+		"created_at": 1700000200000,
+		"updated_at": 1700000200000,
+		"items": [],
+		"recentItems": []
+	}
+]

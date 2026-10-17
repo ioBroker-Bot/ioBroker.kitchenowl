@@ -1,0 +1,227 @@
+import { expect } from 'chai';
+import type * as utils from '@iobroker/adapter-core';
+
+import { ObjectWriter } from './objects';
+
+/** A stored object, kept loose so tests can read `common` without narrowing. */
+export interface StoredObject {
+	type: string;
+	common: Record<string, unknown>;
+	native: unknown;
+}
+
+/** The value wrapper `setStateChangedAsync` receives. */
+export interface StoredState {
+	val: ioBroker.StateValue;
+}
+
+/** The options `delObjectAsync` understands. */
+export interface DeleteOptions {
+	recursive?: boolean;
+}
+
+/** Minimal in-memory stand-in for the parts of the adapter ObjectWriter touches. */
+export class FakeAdapter {
+	public readonly namespace = 'kitchenowl.0';
+	public readonly objects = new Map<string, StoredObject>();
+	public readonly states = new Map<string, ioBroker.StateValue>();
+	public readonly warnings: string[] = [];
+	public readonly log = {
+		silly: (): void => {},
+		debug: (): void => {},
+		info: (): void => {},
+		warn: (message: string): void => {
+			this.warnings.push(message);
+		},
+		error: (): void => {},
+	};
+
+	/**
+	 * @param id - Namespace-relative object id
+	 * @param obj - Object to store
+	 */
+	public setObjectNotExistsAsync(id: string, obj: unknown): Promise<void> {
+		if (!this.objects.has(id)) {
+			this.objects.set(id, obj as StoredObject);
+		}
+		return Promise.resolve();
+	}
+
+	/**
+	 * @param id - Namespace-relative state id
+	 * @param state - Wrapper carrying the value to store
+	 */
+	public setStateChangedAsync(id: string, state: StoredState): Promise<void> {
+		this.states.set(id, state.val);
+		return Promise.resolve();
+	}
+
+	/** Mimics the real call, which returns fully namespaced ids. */
+	public getAdapterObjectsAsync(): Promise<Record<string, unknown>> {
+		return Promise.resolve(Object.fromEntries([...this.objects.keys()].map(id => [`${this.namespace}.${id}`, {}])));
+	}
+
+	/**
+	 * @param id - Namespace-relative object id
+	 * @param options - Delete options, notably `recursive`
+	 */
+	public delObjectAsync(id: string, options?: DeleteOptions): Promise<void> {
+		this.objects.delete(id);
+		if (options?.recursive) {
+			for (const key of [...this.objects.keys()]) {
+				if (key.startsWith(`${id}.`)) {
+					this.objects.delete(key);
+				}
+			}
+		}
+		return Promise.resolve();
+	}
+
+	/** Casts to the adapter type the production code expects. */
+	public asAdapter(): utils.AdapterInstance {
+		return this as unknown as utils.AdapterInstance;
+	}
+}
+
+describe('ObjectWriter', () => {
+	let adapter: FakeAdapter;
+	let writer: ObjectWriter;
+
+	beforeEach(() => {
+		adapter = new FakeAdapter();
+		writer = new ObjectWriter(adapter.asAdapter());
+	});
+
+	it('creates channels and states and publishes their values', async () => {
+		writer.channel('households', 'Households', 'folder');
+		writer.value('households.1.name', 'Name', 'string', 'text', 'Example Household');
+		await writer.flush();
+
+		expect(adapter.objects.get('households')?.type).to.equal('folder');
+		expect(adapter.objects.get('households.1.name')?.common).to.deep.include({
+			name: { en: 'Name', de: 'Name' },
+			type: 'string',
+			role: 'text',
+			read: true,
+			write: false,
+		});
+		expect(adapter.states.get('households.1.name')).to.equal('Example Household');
+	});
+
+	it('localizes names that have a German translation and passes others through', async () => {
+		writer.channel('households.1', 'Example Household', 'device');
+		writer.value('households.1.expenses.count', 'Number of expenses read', 'number', 'value', 3);
+		await writer.flush();
+
+		// A name that comes from KitchenOwl itself stays as it is.
+		expect(adapter.objects.get('households.1')?.common.name).to.equal('Example Household');
+		expect(adapter.objects.get('households.1.expenses.count')?.common.name).to.deep.equal({
+			en: 'Number of expenses read',
+			de: 'Anzahl der gelesenen Ausgaben',
+		});
+	});
+
+	it('serialises JSON states', async () => {
+		writer.json('households.1.json', 'Raw', { a: [1, 2] });
+		await writer.flush();
+
+		expect(adapter.states.get('households.1.json')).to.equal('{"a":[1,2]}');
+	});
+
+	it('creates buttons as write-only states without a value', async () => {
+		writer.button('commands.refresh', 'Refresh');
+		await writer.flush();
+
+		expect(adapter.objects.get('commands.refresh')?.common).to.include({
+			role: 'button',
+			read: false,
+			write: true,
+		});
+		expect(adapter.states.has('commands.refresh')).to.equal(false);
+	});
+
+	it('attaches a unit only when one was given', async () => {
+		writer.value('a', 'A', 'number', 'value', 1, 'min');
+		writer.value('b', 'B', 'number', 'value', 2);
+		await writer.flush();
+
+		expect(adapter.objects.get('a')?.common).to.have.property('unit', 'min');
+		expect(adapter.objects.get('b')?.common).to.not.have.property('unit');
+	});
+
+	it('never overwrites an object a user has edited', async () => {
+		writer.value('households.1.name', 'Name', 'string', 'text', 'First');
+		await writer.flush();
+		adapter.objects.get('households.1.name')!.common.name = 'Renamed by user';
+
+		const second = new ObjectWriter(adapter.asAdapter());
+		second.value('households.1.name', 'Name', 'string', 'text', 'Second');
+		await second.flush();
+
+		expect(adapter.objects.get('households.1.name')?.common.name).to.equal('Renamed by user');
+		// The value still updates, only the object definition is left alone.
+		expect(adapter.states.get('households.1.name')).to.equal('Second');
+	});
+
+	describe('prune', () => {
+		it('removes objects the current run did not touch', async () => {
+			writer.channel('households.1', 'One');
+			writer.value('households.1.name', 'Name', 'string', 'text', 'One');
+			writer.channel('households.2', 'Two');
+			writer.value('households.2.name', 'Name', 'string', 'text', 'Two');
+			await writer.flush();
+
+			const second = new ObjectWriter(adapter.asAdapter());
+			second.channel('households.1', 'One');
+			second.value('households.1.name', 'Name', 'string', 'text', 'One');
+			await second.flush();
+			const deleted = await second.prune(['households']);
+
+			expect(deleted).to.equal(1);
+			expect(adapter.objects.has('households.1.name')).to.equal(true);
+			expect(adapter.objects.has('households.2')).to.equal(false);
+			expect(adapter.objects.has('households.2.name')).to.equal(false);
+		});
+
+		it('leaves branches outside the given prefixes alone', async () => {
+			writer.value('info.connection', 'Connected', 'boolean', 'indicator.connected', true);
+			writer.channel('households.1', 'One');
+			await writer.flush();
+
+			const second = new ObjectWriter(adapter.asAdapter());
+			await second.flush();
+			await second.prune(['households']);
+
+			expect(adapter.objects.has('info.connection')).to.equal(true);
+			expect(adapter.objects.has('households.1')).to.equal(false);
+		});
+
+		it('deletes a whole subtree with one recursive call', async () => {
+			writer.channel('households.1', 'One');
+			writer.channel('households.1.recipes', 'Recipes');
+			writer.value('households.1.recipes.9.name', 'Name', 'string', 'text', 'Soup');
+			await writer.flush();
+
+			const second = new ObjectWriter(adapter.asAdapter());
+			const deleted = await second.prune(['households']);
+
+			// Only the top of the subtree is deleted; the children go with it.
+			expect(deleted).to.equal(1);
+			expect(adapter.objects.size).to.equal(0);
+		});
+
+		it('keeps ids that were explicitly marked as still alive', async () => {
+			writer.value('households.1.recipes.scrapeResult', 'Result', 'string', 'json', '{}');
+			await writer.flush();
+
+			const second = new ObjectWriter(adapter.asAdapter());
+			second.channel('households.1', 'One');
+			second.channel('households.1.recipes', 'Recipes');
+			second.keep('households.1.recipes.scrapeResult');
+			await second.flush();
+			await second.prune(['households']);
+
+			expect(adapter.objects.has('households.1.recipes.scrapeResult')).to.equal(true);
+		});
+	});
+});

@@ -1,0 +1,48 @@
+{
+	"items": {
+		"writeHint": {
+			"type": "staticText",
+			"text": "With write access enabled the adapter creates additional writable states and buttons that change data in KitchenOwl. Leave it off if you only want to read data.",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
+		},
+		"enableWrite": {
+			"type": "checkbox",
+			"label": "Enable write access to KitchenOwl",
+			"confirm": {
+				"condition": "data.enableWrite",
+				"title": "Enable write access",
+				"text": "Writable states can add, change and delete shopping list items, expenses and planner entries in KitchenOwl. Continue?",
+				"ok": "Enable",
+				"cancel": "Cancel",
+				"type": "warning"
+			},
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 6,
+			"lg": 4,
+			"xl": 4
+		},
+		"writeRefreshDelay": {
+			"type": "number",
+			"label": "Refresh delay after a write",
+			"help": "How long to wait before re-reading the changed branch from the server",
+			"unit": "ms",
+			"min": 0,
+			"max": 60000,
+			"step": 100,
+			"hidden": "!data.enableWrite",
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		}
+	}
+}

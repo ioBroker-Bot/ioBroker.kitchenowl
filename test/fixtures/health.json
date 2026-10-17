@@ -1,0 +1,6 @@
+{
+	"msg": "OK",
+	"version": 124,
+	"min_frontend_version": 71,
+	"oidc_provider": []
+}

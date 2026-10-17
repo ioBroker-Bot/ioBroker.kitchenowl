@@ -1,0 +1,51 @@
+{
+	"cli": true,
+	"target": "directory",
+	"adapterName": "kitchenowl",
+	"title": "KitchenOwl",
+	"description": "Connects ioBroker to a self-hosted KitchenOwl server: shopping lists, recipes, meal planner, expenses and household balances",
+	"keywords": [
+		"kitchenowl",
+		"shopping list",
+		"groceries",
+		"recipes",
+		"meal planner",
+		"expenses"
+	],
+	"contributors": "",
+	"expert": "yes",
+	"features": [
+		"adapter"
+	],
+	"adminFeatures": [],
+	"type": "household",
+	"startMode": "daemon",
+	"connectionType": "local",
+	"dataSource": "poll",
+	"connectionIndicator": "yes",
+	"language": "TypeScript",
+	"nodeVersion": "22",
+	"adminUi": "json",
+	"tabReact": "no",
+	"tools": [
+		"ESLint"
+	],
+	"eslintConfig": "official",
+	"releaseScript": "yes",
+	"devServer": "no",
+	"indentation": "Tab",
+	"quotes": "single",
+	"authorName": "Fabian Ihle",
+	"authorGithub": "n1tr0-5urf3r",
+	"authorEmail": "fabian.ihle@uni-tuebingen.de",
+	"gitRemoteProtocol": "HTTPS",
+	"gitCommit": "no",
+	"defaultBranch": "master",
+	"license": "MIT License",
+	"licenseInformation": {
+		"type": "free"
+	},
+	"dependabot": "yes",
+	"replay": "/tmp/claude-1000/-home-arx-plugin-kitchenowl/3af13410-de2f-41ea-a2a6-550a67c5131a/scratchpad/answers.json",
+	"creatorVersion": "3.1.5"
+}

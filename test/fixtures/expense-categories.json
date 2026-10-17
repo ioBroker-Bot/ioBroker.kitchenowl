@@ -1,0 +1,4 @@
+[
+	{ "id": 50, "name": "Groceries", "household_id": 1, "color": null, "budget": 200 },
+	{ "id": 51, "name": "Eating out", "household_id": 1, "color": 4289003611, "budget": null }
+]

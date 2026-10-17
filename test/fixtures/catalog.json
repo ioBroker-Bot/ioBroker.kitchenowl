@@ -1,0 +1,8 @@
+{
+	"items": [
+		{ "id": 10, "name": "Bread", "household_id": 1, "category_id": 5 },
+		{ "id": 11, "name": "Milk", "household_id": 1, "category_id": null }
+	],
+	"categories": [{ "id": 5, "name": "Bakery", "household_id": 1, "ordering": 0 }],
+	"tags": [{ "id": 30, "name": "soup", "household_id": 1 }]
+}

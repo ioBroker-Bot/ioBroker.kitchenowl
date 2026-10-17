@@ -1,0 +1,32 @@
+[
+	{
+		"id": 40,
+		"name": "Weekly shop",
+		"amount": 42.5,
+		"household_id": 1,
+		"paid_by_id": 1,
+		"date": 1700000600000,
+		"description": "",
+		"photo": null,
+		"category_id": 50,
+		"exclude_from_statistics": false,
+		"category": { "id": 50, "name": "Groceries", "household_id": 1, "color": null, "budget": 200 },
+		"paid_for": [
+			{ "expense_id": 40, "user_id": 1, "factor": 1 },
+			{ "expense_id": 40, "user_id": 2, "factor": 1 }
+		]
+	},
+	{
+		"id": 41,
+		"name": "Takeaway",
+		"amount": 18.0,
+		"household_id": 1,
+		"paid_by_id": 2,
+		"date": 1700000500000,
+		"description": "",
+		"photo": null,
+		"category_id": null,
+		"exclude_from_statistics": false,
+		"paid_for": [{ "expense_id": 41, "user_id": 2, "factor": 1 }]
+	}
+]

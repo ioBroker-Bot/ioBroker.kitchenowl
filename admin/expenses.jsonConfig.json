@@ -1,0 +1,77 @@
+{
+	"items": {
+		"expensesHint": {
+			"type": "staticText",
+			"text": "These settings only apply to households that have the expenses feature enabled in KitchenOwl.",
+			"newLine": true,
+			"xs": 12,
+			"sm": 12,
+			"md": 12,
+			"lg": 12,
+			"xl": 12
+		},
+		"expenseView": {
+			"type": "select",
+			"label": "Perspective",
+			"help": "Household shows the full amounts, personal shows only your share",
+			"options": [
+				{ "label": "Whole household", "value": 0 },
+				{ "label": "Personal share", "value": 1 }
+			],
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"expensePages": {
+			"type": "number",
+			"label": "Pages of recent expenses",
+			"help": "The server returns 30 expenses per page",
+			"min": 1,
+			"max": 20,
+			"step": 1,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"headerOverview": {
+			"type": "header",
+			"text": "Statistics overview",
+			"size": 2,
+			"newLine": true
+		},
+		"expenseOverviewFrame": {
+			"type": "select",
+			"label": "Time frame",
+			"options": [
+				{ "label": "Daily", "value": 0 },
+				{ "label": "Weekly", "value": 1 },
+				{ "label": "Monthly", "value": 2 },
+				{ "label": "Yearly", "value": 3 }
+			],
+			"newLine": true,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		},
+		"expenseOverviewSteps": {
+			"type": "number",
+			"label": "Number of periods",
+			"help": "How many past periods the overview covers, including the current one",
+			"min": 1,
+			"max": 24,
+			"step": 1,
+			"xs": 12,
+			"sm": 6,
+			"md": 4,
+			"lg": 3,
+			"xl": 3
+		}
+	}
+}
