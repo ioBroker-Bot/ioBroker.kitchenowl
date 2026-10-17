@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "description": "Connects ioBroker to a self-hosted KitchenOwl server: shopping lists, recipes, meal planner, expenses and household balances",
   "author": {
-    "name": "Fabian Ihle",
-    "email": "fabian.ihle@uni-tuebingen.de"
+    "name": "n1tr0-5urf3r",
+    "email": "fabi@ihlecloud.de"
   },
   "contributors": [],
   "homepage": "https://github.com/n1tr0-5urf3r/ioBroker.kitchenowl",
