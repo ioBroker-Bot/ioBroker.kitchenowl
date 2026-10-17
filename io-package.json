@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "kitchenowl",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "news": {
+      "0.0.3": {
+        "en": "The item payloads no longer repeat the full category object and KitchenOwl's internal bookkeeping, which cuts the catalog state of a 800 item household from roughly 290 kB to 56 kB\nRemoved the household json state, which only repeated the states next to it",
+        "de": "Die Artikeldaten wiederholen nicht mehr die gesamte Kategorie und KitchenOwls interne Buchhaltung, was den Katalogstatus eines Haushalts mit 800 Artikeln von etwa 290 kB auf 56 kB senkt\nJSON-Status für Haushalte entfernt, nur die Staaten daneben",
+        "ru": "Объем полезной нагрузки на товары больше не соответствует объекту полной категории и внутреннему бухгалтерскому учету KitchenOwl, в результате чего состояние каталога домохозяйства, насчитывающего 800 предметов, сократилось примерно с 290 КБ до 56 КБ\nУдалено домашнее состояние json, которое повторяло только соседние состояния",
+        "pt": "As cargas do item não repetem mais o objeto da categoria completa e a contabilidade interna do KitchenOwl, que reduz o estado do catálogo de 800 itens de cerca de 290 kB para 56 kB.\nRemoveu o estado json doméstico, que só repetiu os estados ao lado",
+        "nl": "Het laadvermogen van het artikel is niet langer hetzelfde als de interne boekhouding van de volledige categorie Object en KitchenOwl, waardoor de catalogusstatus van een huishouden van 800 artikelen is teruggebracht van ongeveer 290 kB naar 56 kB\nDe json-status voor het huishouden is verwijderd, waarbij alleen de staten ernaast werden herhaald",
+        "fr": "La charge utile des articles ne correspond plus à la catégorie complète des objets et à la comptabilité interne de KitchenOwl, qui fait passer l'état du catalogue d'une maison de 800 articles d'environ 290 à 56 ko\nSuppression de l'état json de la maison, qui ne faisait que répéter les états voisins",
+        "it": "I payload non ripetono più l'oggetto completo e la contabilità interna di KitchenOwl, il che riduce lo stato del catalogo di una famiglia di 800 articoli da circa 290 a 56 kB\nRimosso lo stato json domestico, che ripeteva solo gli stati adiacenti",
+        "es": "Las cargas útiles de los artículos ya no repiten el objeto de categoría completa y la contabilidad interna de KitchenOwl, que reduce el estado del catálogo de un hogar de 800 artículos de unos 290 KB a 56 KB\nSe eliminó el estado json doméstico, que solo repetía los estados de al lado",
+        "pl": "Obciążenia przedmiotów nie powtarzają już obiektu pełnej kategorii i wewnętrznej księgowości KitchenOwl, co zmniejsza stan katalogu 800 przedmiotów gospodarstwa domowego z około 290 kB do 56 kB\nUsunięto domowy stan json, który powtarzał tylko stany obok niego",
+        "uk": "Корисні навантаження на предмети більше не повторюють об'єкт повної категорії та внутрішню бухгалтерію KitchenOwl, що скорочує стан каталогу домашнього господарства з 800 предметами приблизно з 290 кБ до 56 кБ\nВидалено побутовий стан json, який повторював лише стану поруч",
+        "zh-cn": "物品的有效载荷不再重复整个类别的对象和 KitchenOwl 的内部簿记，后者将 800 件物品家庭的目录状态从大约 290 kB 缩减到 56 kB\n删除了家庭 json 状态，它只重复了旁边的状态"
+      },
       "0.0.2": {
         "en": "Fixed a retry delay that was not cancelled when the adapter shut down\nThe compiled output is part of the repository again, so installing from a GitHub URL works\nTranslated the admin interface into the remaining languages\nRaised the requirements to Node.js 22.19 and admin 7.6.20\nReleases are published automatically from CI",
         "de": "Fehler behoben, der beim Abschalten des Adapters nicht storniert wurde\nDie kompilierte Ausgabe ist wieder Teil des Repositorys, also via GitHub-URL\nDas Admin-Interface in die übrigen Sprachen übersetzt\nAnforderungen auf Node.js 22.19 und Admin 7.6.20 erhöht\nReleases erscheinen automatisch von CI",
