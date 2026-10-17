@@ -40,7 +40,7 @@
 	"authorEmail": "fabian.ihle@uni-tuebingen.de",
 	"gitRemoteProtocol": "HTTPS",
 	"gitCommit": "no",
-	"defaultBranch": "master",
+	"defaultBranch": "main",
 	"license": "MIT License",
 	"licenseInformation": {
 		"type": "free"
