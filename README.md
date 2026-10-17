@@ -201,7 +201,7 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 	### **WORK IN PROGRESS**
 -->
 
-### **WORK IN PROGRESS**
+### 0.0.1 (2026-10-17)
 
 - (Fabian Ihle) initial release
 
