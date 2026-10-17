@@ -208,8 +208,7 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.0.4 (2026-10-17)
 
 - (n1tr0-5urf3r) Removed the id states whose value was already the name of the object they sat in
 - (n1tr0-5urf3r) A date that is not set now reads as empty instead of 1 January 1970
