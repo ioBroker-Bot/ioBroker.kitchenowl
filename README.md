@@ -200,14 +200,18 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### 0.0.3 (2026-10-17)
 
-- (n1tr0-5urf3r) The item payloads no longer repeat the full category object and KitchenOwl's internal bookkeeping, which cuts the catalog state of a 800 item household from roughly 290 kB to 56 kB
-- (n1tr0-5urf3r) Removed the household json state, which only repeated the states next to it
+### **WORK IN PROGRESS**
+
 - (n1tr0-5urf3r) Removed the id states whose value was already the name of the object they sat in
 - (n1tr0-5urf3r) A date that is not set now reads as empty instead of 1 January 1970
 - (n1tr0-5urf3r) Expenses name the person who paid instead of exposing a numeric user id
 - (n1tr0-5urf3r) Expense category colours are CSS values, and recipe visibility shows a label
+
+### 0.0.3 (2026-10-17)
+
+- (n1tr0-5urf3r) The item payloads no longer repeat the full category object and KitchenOwl's internal bookkeeping, which cuts the catalog state of a 800 item household from roughly 290 kB to 56 kB
+- (n1tr0-5urf3r) Removed the household json state, which only repeated the states next to it
 
 ### 0.0.2 (2026-10-17)
 
