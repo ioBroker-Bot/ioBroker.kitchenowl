@@ -32,7 +32,8 @@
 
 Everything above can be switched off individually, and write access is off by default.
 
-## About
+<details>
+<summary><b>About KitchenOwl, compatibility and disclaimer</b></summary>
 
 KitchenOwl is a free, self-hosted grocery list and recipe manager. The project lives at
 [github.com/TomBursch/kitchenowl](https://github.com/TomBursch/kitchenowl) and is licensed under the AGPL-3.0.
@@ -44,6 +45,8 @@ version 57, so v0.4 and newer should work; the adapter reads the server version 
 **Disclaimer:** this adapter is an independent project and is not affiliated with, endorsed by, or supported by the
 KitchenOwl project or its authors. The KitchenOwl name and logo belong to their respective owners; the logo is used
 here only to identify the service this adapter connects to.
+
+</details>
 
 ## Getting started
 
@@ -57,7 +60,8 @@ here only to identify the service this adapter connects to.
 The token belongs to a user, not to a household, and grants everything that user can do in every household they are a
 member of. It does not expire until you revoke it in KitchenOwl.
 
-## Configuration
+<details>
+<summary><b>All settings</b></summary>
 
 ### Connection
 
@@ -97,10 +101,13 @@ member of. It does not expire until you revoke it in KitchenOwl.
 
 ### Write access
 
-Off by default. When enabled, the adapter creates additional writable states and buttons; see
-[Writing back to KitchenOwl](#writing-back-to-kitchenowl).
+Off by default. When enabled, the adapter creates additional writable states and buttons; see the
+**Writing back to KitchenOwl** section below.
 
-## Object tree
+</details>
+
+<details>
+<summary><b>Object tree</b></summary>
 
 ```
 kitchenowl.<instance>
@@ -143,7 +150,10 @@ kitchenowl.<instance>
 Weekday `0` is Monday. Timestamps are epoch milliseconds, matching what the KitchenOwl API returns. Expense balances
 are rounded to two decimals; the API returns them as raw floats.
 
-## Writing back to KitchenOwl
+</details>
+
+<details>
+<summary><b>Writing back to KitchenOwl</b></summary>
 
 Enable **Write access** to get these additional states. Writing to one of them sends the change to KitchenOwl and then
 re-reads the affected household.
@@ -170,7 +180,10 @@ sendTo('kitchenowl.0', 'testConnection', {}, result => log(JSON.stringify(result
 sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 ```
 
-## Troubleshooting
+</details>
+
+<details>
+<summary><b>Troubleshooting</b></summary>
 
 - **`info.connection` stays false** — check `info.lastError`. A rejected token is reported explicitly; the adapter keeps
   retrying rather than stopping.
@@ -179,6 +192,8 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 - **A household has no expenses or planner branch** — those features are enabled per household inside KitchenOwl, and
   the adapter mirrors that.
 - **Self-signed certificate** — turn off **Verify TLS certificate** on the Connection tab.
+
+</details>
 
 ## Changelog
 <!--
