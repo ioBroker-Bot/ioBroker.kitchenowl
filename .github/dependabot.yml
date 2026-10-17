@@ -4,21 +4,31 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-      day: 10
       time: "00:05"
       timezone: Europe/Berlin
-    open-pull-requests-limit: 5
+    # Let a release sit for a week before opening a PR for it, so a compromised
+    # package has time to be caught and pulled.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 15
     assignees:
       - n1tr0-5urf3r
     versioning-strategy: increase
+    ignore:
+      # The major version of the node typings tracks the node release the
+      # adapter targets, so it is bumped deliberately rather than automatically.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: monthly
-      day: 10
       time: "00:05"
       timezone: Europe/Berlin
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 15
     assignees:
       - n1tr0-5urf3r

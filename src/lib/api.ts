@@ -1,3 +1,5 @@
+import { setTimeout as delay } from 'node:timers/promises';
+
 import { Agent, fetch, type RequestInit } from 'undici';
 
 import {
@@ -503,7 +505,17 @@ export class KitchenOwlClient {
 		}
 	}
 
-	private sleep(ms: number): Promise<void> {
-		return new Promise(resolve => setTimeout(resolve, ms));
+	/**
+	 * Waits between retry attempts, abortable so that a pending backoff does not
+	 * outlive the adapter. A bare timer here would keep running after unload.
+	 *
+	 * @param ms - Delay in milliseconds
+	 */
+	private async sleep(ms: number): Promise<void> {
+		try {
+			await delay(ms, undefined, { signal: this.abortController.signal });
+		} catch {
+			// Aborted during shutdown; the caller checks `destroyed` next.
+		}
 	}
 }

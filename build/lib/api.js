@@ -24,6 +24,7 @@ __export(api_exports, {
   KitchenOwlClient: () => KitchenOwlClient
 });
 module.exports = __toCommonJS(api_exports);
+var import_promises = require("node:timers/promises");
 var import_undici = require("undici");
 var import_types = require("./types");
 const HEALTH_PATH = "/api/health/8M4F88S8ooi4sMbLBfkkV7ctWwgibW6V";
@@ -409,8 +410,17 @@ class KitchenOwlClient {
       throw new Error(`${method} ${path} returned a body that is not valid JSON`);
     }
   }
-  sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  /**
+   * Waits between retry attempts, abortable so that a pending backoff does not
+   * outlive the adapter. A bare timer here would keep running after unload.
+   *
+   * @param ms - Delay in milliseconds
+   */
+  async sleep(ms) {
+    try {
+      await (0, import_promises.setTimeout)(ms, void 0, { signal: this.abortController.signal });
+    } catch {
+    }
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

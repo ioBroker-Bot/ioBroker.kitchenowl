@@ -2,7 +2,7 @@
   <img src="admin/kitchenowl.png" alt="KitchenOwl" width="120" />
 </p>
 
-<h1 align="center">ioBroker.kitchenowl</h1>
+# ioBroker.kitchenowl
 
 <p align="center">
   Bring your self-hosted <a href="https://kitchenowl.org/">KitchenOwl</a> kitchen into ioBroker.
