@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "kitchenowl",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "news": {
+      "0.0.2": {
+        "en": "Fixed a retry delay that was not cancelled when the adapter shut down\nThe compiled output is part of the repository again, so installing from a GitHub URL works\nTranslated the admin interface into the remaining languages\nRaised the requirements to Node.js 22.19 and admin 7.6.20\nReleases are published automatically from CI",
+        "de": "Fehler behoben, der beim Abschalten des Adapters nicht storniert wurde\nDie kompilierte Ausgabe ist wieder Teil des Repositorys, also via GitHub-URL\nDas Admin-Interface in die übrigen Sprachen übersetzt\nAnforderungen auf Node.js 22.19 und Admin 7.6.20 erhöht\nReleases erscheinen automatisch von CI",
+        "ru": "Исправлена задержка повторной попытки, которая не была отменена при выключении адаптера\nСкомпилированный результат снова является частью репозитория, поэтому установка с URL-адреса GitHub работает\nПеревел интерфейс администратора на остальные языки\nПовысили требования к Node.js 22.19 и admin 7.6.20\nРелизы публикуются автоматически из CI",
+        "pt": "Corrigido um atraso de nova tentativa ao desligar o adaptador\nA saída compilada é parte do repositório, então instalar de um URL do GitHub funciona\nTraduziu a interface admin para os demais idiomas\nRequisitos elevados para Node.js 22.19 e admin 7.6.20\nAs versões são publicadas automaticamente pelo CI",
+        "nl": "Er is een vertraging opgelost die niet werd geannuleerd toen de adapter werd uitgeschakeld\nDe gecompileerde uitvoer maakt weer deel uit van de repository, dus installeren via een GitHub-URL werkt\nDe beheerinterface vertaald naar de overige talen\nDe vereisten zijn verhoogd naar Node.js 22.19 en admin 7.6.20\nPublicaties worden automatisch gepubliceerd door CI",
+        "fr": "Correction d'un délai de réessai non annulé à l'arrêt de l'adaptateur\nLa sortie compilée fait à nouveau partie du dépôt, donc l'installation à partir d'une URL GitHub fonctionne\nA traduit l'interface d'administration dans les autres langues\nLes exigences ont été augmentées à Node.js 22.19 et admin 7.6.20\nLes sorties sont publiées automatiquement par CI",
+        "it": "Risolto un ritardo non annullato allo spegnimento dell'adattatore\nL'output è di nuovo nel repository, quindi l'installazione da un URL GitHub funziona\nHa tradotto l'interfaccia admin nelle altre lingue\nAumentato i requisiti a Node.js 22.19 e admin 7.6.20\nLe release sono pubblicate automaticamente da CI",
+        "es": "Se corrigió un retraso de reintento que no se canceló al apagarse el adaptador\nLa salida compilada vuelve a formar parte del repositorio, por lo que instalar desde una URL de GitHub\nTradujo la interfaz de administración al resto de idiomas\nAumentó los requisitos a Node.js 22.19 y admin 7.6.20\nLos lanzamientos se publican automáticamente en CI",
+        "pl": "Naprawiono opóźnienie ponownej próby, które nie zostało anulowane po wyłączeniu adaptera\nSkompilowane dane wyjściowe są ponownie częścią repozytorium, więc instalacja z adresu URL GitHub działa\nPrzetłumaczył interfejs administratora na pozostałe języki\nPodniesiono wymagania do Node.js 22.19 i admin 7.6.20\nWydania są publikowane automatycznie z CI",
+        "uk": "Виправлена затримка повторної спроби, яка не була скасована при вимкненні адаптера\nСкомпільований вихід знову є частиною сховища, тому установка з URL-адреси GitHub працює\nПереклав інтерфейс адміністратора на інші мови\nПідняли вимоги до Node.js 22.19 та адміністратора 7.6.20\nРелізи публікуються автоматично з CI",
+        "zh-cn": "修复了适配器关闭时未取消的重试延迟问题\n编译后的输出又是存储库的一部分，因此可以从 GitHub URL 进行安装\n已将管理界面翻译成其余语言\n将要求提高到 Node.js 22.19 和管理员 7.6.20\n版本从 CI 自动发布"
+      },
       "0.0.1": {
         "en": "initial release",
         "de": "Erstveröffentlichung",

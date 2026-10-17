@@ -200,8 +200,7 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.0.2 (2026-10-17)
 
 - (n1tr0-5urf3r) Fixed a retry delay that was not cancelled when the adapter shut down
 - (n1tr0-5urf3r) The compiled output is part of the repository again, so installing from a GitHub URL works
