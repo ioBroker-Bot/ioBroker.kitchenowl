@@ -201,6 +201,14 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 	### **WORK IN PROGRESS**
 -->
 
+### **WORK IN PROGRESS**
+
+- (Fabian Ihle) Fixed a retry delay that was not cancelled when the adapter shut down
+- (Fabian Ihle) The compiled output is part of the repository again, so installing from a GitHub URL works
+- (Fabian Ihle) Translated the admin interface into the remaining languages
+- (Fabian Ihle) Raised the requirements to Node.js 22.19 and admin 7.6.20
+- (Fabian Ihle) Releases are published automatically from CI
+
 ### 0.0.1 (2026-10-17)
 
 - (Fabian Ihle) initial release
