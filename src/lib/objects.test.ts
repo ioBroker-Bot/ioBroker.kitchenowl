@@ -334,6 +334,44 @@ describe('ObjectWriter', () => {
 			expect(adapter.objects.size).to.equal(0);
 		});
 
+		it('recreates an object that was pruned and later came back', async () => {
+			// The cache is what makes a poll cheap, so a delete has to clear it:
+			// otherwise the writer still believes the object is in the database
+			// and silently skips recreating a list that reappears in KitchenOwl.
+			const cache = new Map<string, string>();
+
+			const pollWith = async (listIds: number[]): Promise<void> => {
+				const run = new ObjectWriter(adapter.asAdapter(), cache);
+				run.channel('households.1', 'One');
+				for (const listId of listIds) {
+					run.serverChannel(`households.1.shoppingLists.${listId}`, `List ${listId}`);
+					run.value(
+						`households.1.shoppingLists.${listId}.itemCount`,
+						'Number of items',
+						'number',
+						'value',
+						listId,
+					);
+				}
+				await run.flush();
+				await run.prune(['households']);
+			};
+
+			await pollWith([1, 2]);
+			expect(adapter.objects.has('households.1.shoppingLists.2')).to.equal(true);
+
+			// List 2 disappears upstream and is pruned.
+			await pollWith([1]);
+			expect(adapter.objects.has('households.1.shoppingLists.2')).to.equal(false);
+			expect(adapter.objects.has('households.1.shoppingLists.2.itemCount')).to.equal(false);
+
+			// It comes back, so both the channel and its state must exist again.
+			await pollWith([1, 2]);
+			expect(adapter.objects.has('households.1.shoppingLists.2')).to.equal(true);
+			expect(adapter.objects.has('households.1.shoppingLists.2.itemCount')).to.equal(true);
+			expect(adapter.states.get('households.1.shoppingLists.2.itemCount')).to.equal(2);
+		});
+
 		it('keeps ids that were explicitly marked as still alive', async () => {
 			writer.value('households.1.recipes.scrapeResult', 'Result', 'string', 'json', '{}');
 			await writer.flush();
