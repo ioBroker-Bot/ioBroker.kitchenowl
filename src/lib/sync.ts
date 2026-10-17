@@ -2,15 +2,18 @@ import type { KitchenOwlClient } from './api';
 import { memberId, round2, toId, toTimestamp } from './ids';
 import type { ObjectWriter } from './objects';
 import {
+	type Category,
 	type Expense,
 	type ExpenseCategory,
 	type ExpenseFrame,
 	type ExpenseOverview,
 	type ExpenseView,
 	type Household,
+	type Item,
 	type PlannerEntry,
 	type Recipe,
 	type ShoppingList,
+	type Tag,
 } from './types';
 
 /** The parts of the adapter configuration the sync functions care about. */
@@ -41,6 +44,48 @@ const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
  */
 function photo(client: KitchenOwlClient, filename: string | null | undefined): string | null {
 	return filename ? client.photoUrl(filename) : null;
+}
+
+/**
+ * An item reduced to the fields that are useful inside ioBroker.
+ *
+ * The API repeats the whole category object on every single item and adds
+ * bookkeeping the adapter already knows or does not need: household_id is
+ * implied by the position in the tree, created_at and updated_at belong to the
+ * catalog entry rather than to this list or recipe, and support, ordering,
+ * default and default_key are internal to KitchenOwl. Passing all of it
+ * through made the catalog state alone around 290 kB per household.
+ */
+export interface SlimItem {
+	id: number;
+	name: string;
+	/** Free text, which is where KitchenOwl keeps the amount. */
+	description?: string;
+	/** Only present on recipe ingredients. */
+	optional?: boolean;
+	category: string | null;
+	icon: string | null;
+}
+
+/**
+ * Reduces an item to the fields worth storing.
+ *
+ * @param item - Item as the API returned it
+ */
+function slimItem(item: Item & { description?: string; optional?: boolean }): SlimItem {
+	const slim: SlimItem = {
+		id: item.id,
+		name: item.name,
+		category: item.category?.name ?? null,
+		icon: item.icon ?? null,
+	};
+	if (item.description !== undefined) {
+		slim.description = item.description;
+	}
+	if (item.optional !== undefined) {
+		slim.optional = item.optional;
+	}
+	return slim;
 }
 
 /**
@@ -86,7 +131,6 @@ export function syncHousehold(
 		household.default_shopping_list?.id ?? 0,
 	);
 	writer.json(`${base}.viewOrdering`, 'Configured view order', household.view_ordering ?? []);
-	writer.json(`${base}.json`, 'Raw household object', household);
 }
 
 /**
@@ -153,8 +197,8 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 		writer.value(`${id}.name`, 'Name', 'string', 'text', list.name);
 		writer.value(`${id}.itemCount`, 'Number of items', 'number', 'value', items.length);
 		writer.value(`${id}.itemNames`, 'Items as text', 'string', 'text', items.map(item => item.name).join(', '));
-		writer.json(`${id}.json`, 'All items on the list', items);
-		writer.json(`${id}.recentItemsJson`, 'Recently removed items', list.recentItems ?? []);
+		writer.json(`${id}.json`, 'All items on the list', items.map(slimItem));
+		writer.json(`${id}.recentItemsJson`, 'Recently removed items', (list.recentItems ?? []).map(slimItem));
 
 		if (config.enableWrite) {
 			writer.state({
@@ -276,7 +320,7 @@ export function syncRecipes(
 		writer.value(`${id}.planned`, 'Currently planned', 'boolean', 'indicator', !!recipe.planned);
 		writer.json(`${id}.plannedDays`, 'Planned weekdays', recipe.planned_days ?? []);
 		writer.value(`${id}.visibility`, 'Visibility', 'number', 'value', recipe.visibility ?? 0);
-		writer.json(`${id}.itemsJson`, 'Ingredients', recipe.items ?? []);
+		writer.json(`${id}.itemsJson`, 'Ingredients', (recipe.items ?? []).map(slimItem));
 	}
 }
 
@@ -453,19 +497,27 @@ export function syncExpenses(
 export function syncCatalog(
 	writer: ObjectWriter,
 	base: string,
-	items: unknown[],
-	categories: unknown[],
-	tags: unknown[],
+	items: Item[],
+	categories: Category[],
+	tags: Tag[],
 ): void {
 	const root = `${base}.catalog`;
 
 	writer.channel(root, 'Item catalog');
 	writer.value(`${root}.itemCount`, 'Number of known items', 'number', 'value', items.length);
-	writer.json(`${root}.itemsJson`, 'All known items', items);
+	writer.json(`${root}.itemsJson`, 'All known items', items.map(slimItem));
 	writer.value(`${root}.categoryCount`, 'Number of categories', 'number', 'value', categories.length);
-	writer.json(`${root}.categoriesJson`, 'All item categories', categories);
+	writer.json(
+		`${root}.categoriesJson`,
+		'All item categories',
+		categories.map(category => ({ id: category.id, name: category.name, ordering: category.ordering ?? 0 })),
+	);
 	writer.value(`${root}.tagCount`, 'Number of tags', 'number', 'value', tags.length);
-	writer.json(`${root}.tagsJson`, 'All recipe tags', tags);
+	writer.json(
+		`${root}.tagsJson`,
+		'All recipe tags',
+		tags.map(tag => ({ id: tag.id, name: tag.name })),
+	);
 }
 
 /**

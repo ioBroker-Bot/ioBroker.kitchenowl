@@ -17,15 +17,18 @@ import {
 	syncShoppingLists,
 } from './sync';
 import {
+	type Category,
 	type Expense,
 	type ExpenseCategory,
 	ExpenseFrame,
 	type ExpenseOverview,
 	ExpenseView,
 	type Household,
+	type Item,
 	type PlannerEntry,
 	type Recipe,
 	type ShoppingList,
+	type Tag,
 } from './types';
 
 /**
@@ -322,7 +325,7 @@ describe('sync', () => {
 
 	describe('syncCatalog', () => {
 		it('writes counts alongside the JSON documents', async () => {
-			const catalog = fixture<{ items: unknown[]; categories: unknown[]; tags: unknown[] }>('catalog');
+			const catalog = fixture<{ items: Item[]; categories: Category[]; tags: Tag[] }>('catalog');
 			syncCatalog(writer, base(), catalog.items, catalog.categories, catalog.tags);
 			await writer.flush();
 
@@ -335,7 +338,7 @@ describe('sync', () => {
 
 	/** Builds the full tree once, with every branch and write access on. */
 	async function syncEverything(): Promise<void> {
-		const catalog = fixture<{ items: unknown[]; categories: unknown[]; tags: unknown[] }>('catalog');
+		const catalog = fixture<{ items: Item[]; categories: Category[]; tags: Tag[] }>('catalog');
 		const full = config({ enableWrite: true });
 
 		syncHousehold(writer, client, base(), household());
@@ -354,6 +357,85 @@ describe('sync', () => {
 		syncCatalog(writer, base(), catalog.items, catalog.categories, catalog.tags);
 		await writer.flush();
 	}
+
+	describe('payload slimming', () => {
+		/** The API repeats these on every item; none of them belong in a state. */
+		const NOISE = [
+			'household_id',
+			'created_at',
+			'updated_at',
+			'support',
+			'ordering',
+			'default',
+			'default_key',
+			'category_id',
+			'created_by',
+		];
+
+		it('keeps only the useful fields of a shopping list item', async () => {
+			syncShoppingLists(writer, base(), fixture<ShoppingList[]>('shoppinglists'), config());
+			await writer.flush();
+
+			const items = JSON.parse(adapter.states.get('households.1.shoppingLists.1.json') as string);
+			expect(items[0]).to.deep.equal({
+				id: 10,
+				name: 'Bread',
+				description: '2 loaves',
+				category: 'Bakery',
+				icon: 'bread',
+			});
+			// An item with no category reports null rather than a nested object.
+			expect(items[1].category).to.equal(null);
+		});
+
+		it('keeps the optional flag on recipe ingredients', async () => {
+			syncRecipes(writer, client, base(), fixture<Recipe[]>('recipes'), config());
+			await writer.flush();
+
+			const items = JSON.parse(adapter.states.get('households.1.recipes.20.itemsJson') as string);
+			expect(items).to.deep.equal([
+				{ id: 13, name: 'Tomatoes', description: '500 g', optional: false, category: null, icon: null },
+				{ id: 14, name: 'Cream', description: '100 ml', optional: true, category: null, icon: null },
+			]);
+		});
+
+		it('strips the repeated category object and bookkeeping from every item payload', async () => {
+			const catalog = fixture<{ items: Item[]; categories: Category[]; tags: Tag[] }>('catalog');
+			syncShoppingLists(writer, base(), fixture<ShoppingList[]>('shoppinglists'), config());
+			syncRecipes(writer, client, base(), fixture<Recipe[]>('recipes'), config());
+			syncCatalog(writer, base(), catalog.items, catalog.categories, catalog.tags);
+			await writer.flush();
+
+			const payloads = [
+				'households.1.shoppingLists.1.json',
+				'households.1.shoppingLists.1.recentItemsJson',
+				'households.1.recipes.20.itemsJson',
+				'households.1.catalog.itemsJson',
+			];
+
+			for (const id of payloads) {
+				for (const entry of JSON.parse(adapter.states.get(id) as string)) {
+					// typeof null is 'object', so check the value rather than the type.
+					expect(
+						entry.category === null || typeof entry.category === 'string',
+						`${id} category should be a name or null, got ${JSON.stringify(entry.category)}`,
+					).to.equal(true);
+					for (const key of NOISE) {
+						expect(entry, `${id} should not carry ${key}`).to.not.have.property(key);
+					}
+				}
+			}
+		});
+
+		it('does not repeat the household scalars in a json state', async () => {
+			syncHousehold(writer, client, base(), household());
+			await writer.flush();
+
+			// Every field of that dump already exists as its own sibling state.
+			expect(adapter.objects.has('households.1.json')).to.equal(false);
+			expect(adapter.states.get('households.1.name')).to.equal('Example Household');
+		});
+	});
 
 	describe('localization', () => {
 		it('has a German name for every state the adapter defines itself', async () => {

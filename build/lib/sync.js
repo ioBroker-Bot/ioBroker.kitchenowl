@@ -33,6 +33,22 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 function photo(client, filename) {
   return filename ? client.photoUrl(filename) : null;
 }
+function slimItem(item) {
+  var _a, _b, _c;
+  const slim = {
+    id: item.id,
+    name: item.name,
+    category: (_b = (_a = item.category) == null ? void 0 : _a.name) != null ? _b : null,
+    icon: (_c = item.icon) != null ? _c : null
+  };
+  if (item.description !== void 0) {
+    slim.description = item.description;
+  }
+  if (item.optional !== void 0) {
+    slim.optional = item.optional;
+  }
+  return slim;
+}
 function syncHousehold(writer, client, base, household) {
   var _a, _b, _c, _d, _e, _f;
   writer.channel(base, household.name, "device");
@@ -63,7 +79,6 @@ function syncHousehold(writer, client, base, household) {
     (_e = (_d = household.default_shopping_list) == null ? void 0 : _d.id) != null ? _e : 0
   );
   writer.json(`${base}.viewOrdering`, "Configured view order", (_f = household.view_ordering) != null ? _f : []);
-  writer.json(`${base}.json`, "Raw household object", household);
 }
 function syncMembers(writer, client, base, household) {
   var _a, _b, _c, _d;
@@ -113,8 +128,8 @@ function syncShoppingLists(writer, base, lists, config) {
     writer.value(`${id}.name`, "Name", "string", "text", list.name);
     writer.value(`${id}.itemCount`, "Number of items", "number", "value", items.length);
     writer.value(`${id}.itemNames`, "Items as text", "string", "text", items.map((item) => item.name).join(", "));
-    writer.json(`${id}.json`, "All items on the list", items);
-    writer.json(`${id}.recentItemsJson`, "Recently removed items", (_b = list.recentItems) != null ? _b : []);
+    writer.json(`${id}.json`, "All items on the list", items.map(slimItem));
+    writer.json(`${id}.recentItemsJson`, "Recently removed items", ((_b = list.recentItems) != null ? _b : []).map(slimItem));
     if (config.enableWrite) {
       writer.state({
         id: `${id}.addItemByName`,
@@ -212,7 +227,7 @@ function syncRecipes(writer, client, base, recipes, config) {
     writer.value(`${id}.planned`, "Currently planned", "boolean", "indicator", !!recipe.planned);
     writer.json(`${id}.plannedDays`, "Planned weekdays", (_i = recipe.planned_days) != null ? _i : []);
     writer.value(`${id}.visibility`, "Visibility", "number", "value", (_j = recipe.visibility) != null ? _j : 0);
-    writer.json(`${id}.itemsJson`, "Ingredients", (_k = recipe.items) != null ? _k : []);
+    writer.json(`${id}.itemsJson`, "Ingredients", ((_k = recipe.items) != null ? _k : []).map(slimItem));
   }
 }
 function syncPlanner(writer, base, entries, config) {
@@ -340,11 +355,22 @@ function syncCatalog(writer, base, items, categories, tags) {
   const root = `${base}.catalog`;
   writer.channel(root, "Item catalog");
   writer.value(`${root}.itemCount`, "Number of known items", "number", "value", items.length);
-  writer.json(`${root}.itemsJson`, "All known items", items);
+  writer.json(`${root}.itemsJson`, "All known items", items.map(slimItem));
   writer.value(`${root}.categoryCount`, "Number of categories", "number", "value", categories.length);
-  writer.json(`${root}.categoriesJson`, "All item categories", categories);
+  writer.json(
+    `${root}.categoriesJson`,
+    "All item categories",
+    categories.map((category) => {
+      var _a;
+      return { id: category.id, name: category.name, ordering: (_a = category.ordering) != null ? _a : 0 };
+    })
+  );
   writer.value(`${root}.tagCount`, "Number of tags", "number", "value", tags.length);
-  writer.json(`${root}.tagsJson`, "All recipe tags", tags);
+  writer.json(
+    `${root}.tagsJson`,
+    "All recipe tags",
+    tags.map((tag) => ({ id: tag.id, name: tag.name }))
+  );
 }
 function householdBase(household) {
   return `households.${(0, import_ids.toId)(String(household.id))}`;
