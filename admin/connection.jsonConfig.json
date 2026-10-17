@@ -24,7 +24,7 @@
 		"token": {
 			"type": "password",
 			"label": "API token",
-			"help": "A long-lived token. Create one in KitchenOwl under Profile -> Settings -> Access tokens.",
+			"help": "A long-lived token. Create one in KitchenOwl under Profile -> Sessions -> Long-lived tokens.",
 			"repeat": false,
 			"visible": false,
 			"newLine": true,

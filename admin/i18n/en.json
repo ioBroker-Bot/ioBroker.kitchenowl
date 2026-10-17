@@ -1,5 +1,5 @@
 {
-	"A long-lived token. Create one in KitchenOwl under Profile -> Settings -> Access tokens.": "A long-lived token. Create one in KitchenOwl under Profile -> Settings -> Access tokens.",
+	"A long-lived token. Create one in KitchenOwl under Profile -> Sessions -> Long-lived tokens.": "A long-lived token. Create one in KitchenOwl under Profile -> Sessions -> Long-lived tokens.",
 	"API token": "API token",
 	"Base URL of your KitchenOwl instance, without a trailing /api": "Base URL of your KitchenOwl instance, without a trailing /api",
 	"Cancel": "Cancel",

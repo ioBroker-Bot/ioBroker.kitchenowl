@@ -18,7 +18,11 @@ members, shopping lists and their items, recipes, the meal planner, expenses wit
 catalog. With write access enabled it can also change that data from ioBroker.
 
 KitchenOwl is a free, self-hosted grocery list and recipe manager. The project lives at
-[github.com/TomBursch/kitchenowl](https://github.com/TomBursch/kitchenowl); this adapter is not affiliated with it.
+[github.com/TomBursch/kitchenowl](https://github.com/TomBursch/kitchenowl) and is licensed under the AGPL-3.0.
+
+**Disclaimer:** this adapter is an independent project and is not affiliated with, endorsed by, or supported by the
+KitchenOwl project or its authors. The KitchenOwl name and logo belong to their respective owners; the logo is used
+here only to identify the service this adapter connects to.
 
 Tested against KitchenOwl v0.7.10 (backend version 124). Household-scoped API paths have been stable since backend
 version 57, so v0.4 and newer should work; the adapter reads the server version at startup and writes it to
@@ -27,7 +31,7 @@ version 57, so v0.4 and newer should work; the adapter reads the server version 
 ## Getting started
 
 1. Install the adapter and create an instance.
-2. In KitchenOwl, create a long-lived API token: open your profile, go to the settings and add an access token.
+2. In KitchenOwl, create a long-lived API token: open your profile, go to **Sessions** and add a long-lived token.
 3. Enter the base URL of your server (for example `https://kitchenowl.example.com`, **without** a trailing `/api`) and
    the token on the **Connection** tab, then press **Test connection**.
 4. On the **Households and sync** tab, pick the households to synchronize. Leaving the field empty synchronizes every
