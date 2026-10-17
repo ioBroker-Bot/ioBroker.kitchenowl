@@ -1,32 +1,49 @@
-![Logo](admin/kitchenowl.png)
+<p align="center">
+  <img src="admin/kitchenowl.png" alt="KitchenOwl" width="120" />
+</p>
 
-# ioBroker.kitchenowl
+<h1 align="center">ioBroker.kitchenowl</h1>
 
-[![NPM version](https://img.shields.io/npm/v/iobroker.kitchenowl.svg)](https://www.npmjs.com/package/iobroker.kitchenowl)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.kitchenowl.svg)](https://www.npmjs.com/package/iobroker.kitchenowl)
-![Number of Installations](https://iobroker.live/badges/kitchenowl-installed.svg)
-![Current version in stable repository](https://iobroker.live/badges/kitchenowl-stable.svg)
+<p align="center">
+  Bring your self-hosted <a href="https://kitchenowl.org/">KitchenOwl</a> kitchen into ioBroker.
+</p>
 
-[![NPM](https://nodei.co/npm/iobroker.kitchenowl.png?downloads=true)](https://nodei.co/npm/iobroker.kitchenowl/)
+<p align="center">
+  <a href="https://github.com/n1tr0-5urf3r/ioBroker.kitchenowl/actions/workflows/test-and-release.yml"><img src="https://github.com/n1tr0-5urf3r/ioBroker.kitchenowl/actions/workflows/test-and-release.yml/badge.svg?branch=main" alt="Test and Release" /></a>
+  <a href="https://www.npmjs.com/package/iobroker.kitchenowl"><img src="https://img.shields.io/npm/v/iobroker.kitchenowl.svg" alt="NPM version" /></a>
+  <a href="https://www.npmjs.com/package/iobroker.kitchenowl"><img src="https://img.shields.io/npm/dm/iobroker.kitchenowl.svg" alt="Downloads" /></a>
+  <img src="https://iobroker.live/badges/kitchenowl-installed.svg" alt="Number of installations" />
+  <img src="https://iobroker.live/badges/kitchenowl-stable.svg" alt="Current version in stable repository" />
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/iobroker.kitchenowl.svg" alt="License" /></a>
+</p>
 
-**Tests:** ![Test and Release](https://github.com/n1tr0-5urf3r/ioBroker.kitchenowl/workflows/Test%20and%20Release/badge.svg)
+## Features
 
-## KitchenOwl adapter for ioBroker
+- **Shopping lists** — every list with its items, a comma-separated text summary for notifications, and recently
+  removed items
+- **Meal planner** — one branch per weekday plus the next planned meal, ready for a dashboard or a voice prompt
+- **Recipes** — ingredients, times, servings, tags, source and photo, per recipe or as one JSON state
+- **Expenses** — recent bookings, per-category spending and a daily/weekly/monthly/yearly statistics overview
+- **Members and balances** — who owes what, rounded and ready to display
+- **Item catalog** — all known items, categories and tags
+- **Write back** — add and tick off shopping list items, book expenses, plan recipes, import a recipe from a URL
+- **Multi-household** — synchronize one, several or all households a token can see
+- **German and English** throughout, in the admin UI and in the object tree
 
-Brings the data of a self-hosted [KitchenOwl](https://kitchenowl.org/) server into ioBroker: households and their
-members, shopping lists and their items, recipes, the meal planner, expenses with per-member balances, and the item
-catalog. With write access enabled it can also change that data from ioBroker.
+Everything above can be switched off individually, and write access is off by default.
+
+## About
 
 KitchenOwl is a free, self-hosted grocery list and recipe manager. The project lives at
 [github.com/TomBursch/kitchenowl](https://github.com/TomBursch/kitchenowl) and is licensed under the AGPL-3.0.
 
-**Disclaimer:** this adapter is an independent project and is not affiliated with, endorsed by, or supported by the
-KitchenOwl project or its authors. The KitchenOwl name and logo belong to their respective owners; the logo is used
-here only to identify the service this adapter connects to.
-
 Tested against KitchenOwl v0.7.10 (backend version 124). Household-scoped API paths have been stable since backend
 version 57, so v0.4 and newer should work; the adapter reads the server version at startup and writes it to
 `info.serverVersion`.
+
+**Disclaimer:** this adapter is an independent project and is not affiliated with, endorsed by, or supported by the
+KitchenOwl project or its authors. The KitchenOwl name and logo belong to their respective owners; the logo is used
+here only to identify the service this adapter connects to.
 
 ## Getting started
 
