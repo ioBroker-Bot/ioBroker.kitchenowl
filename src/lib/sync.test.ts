@@ -133,6 +133,20 @@ describe('sync', () => {
 			expect(adapter.states.get('households.1.members.alice.isOwner')).to.equal(true);
 			expect(adapter.states.get('households.1.members.bob.isHouseholdAdmin')).to.equal(false);
 		});
+
+		it('gives two members whose usernames fold alike a branch each', async () => {
+			const colliding = household();
+			colliding.member = [
+				{ ...colliding.member![0], id: 1, username: 'a.b', name: 'First' },
+				{ ...colliding.member![1], id: 2, username: 'a b', name: 'Second' },
+			];
+
+			syncMembers(writer, client, base(), colliding);
+			await writer.flush();
+
+			expect(adapter.states.get('households.1.members.a_b_1.name')).to.equal('First');
+			expect(adapter.states.get('households.1.members.a_b_2.name')).to.equal('Second');
+		});
 	});
 
 	describe('syncShoppingLists', () => {
@@ -227,13 +241,29 @@ describe('sync', () => {
 			await second.flush();
 			expect(adapter.objects.get('households.1.recipes.scrapeUrl')?.common.write).to.equal(true);
 		});
+
+		it('leaves the result of the last import to the command handler', async () => {
+			syncRecipes(writer, client, base(), recipes(), config({ enableWrite: true }));
+			await writer.flush();
+			// What the import command writes once it has scraped the recipe.
+			adapter.states.set('households.1.recipes.scrapeResult', '{"name":"Imported"}');
+
+			const second = new ObjectWriter(adapter.asAdapter());
+			syncRecipes(second, client, base(), recipes(), config({ enableWrite: true }));
+			await second.flush();
+
+			expect(adapter.objects.has('households.1.recipes.scrapeResult')).to.equal(true);
+			expect(adapter.states.get('households.1.recipes.scrapeResult')).to.equal('{"name":"Imported"}');
+		});
 	});
 
 	describe('syncPlanner', () => {
 		const entries = (): PlannerEntry[] => fixture<PlannerEntry[]>('planner');
+		/** A moment before both meals in the fixture, which are dated November 2023. */
+		const beforeBoth = 1700000000000;
 
 		it('fills the weekday that has a meal and leaves the others empty', async () => {
-			syncPlanner(writer, base(), entries(), config());
+			syncPlanner(writer, base(), entries(), config(), beforeBoth);
 			await writer.flush();
 
 			expect(adapter.states.get('households.1.planner.days.2.recipeName')).to.equal('Tomato Soup');
@@ -244,7 +274,7 @@ describe('sync', () => {
 		});
 
 		it('creates a channel for all seven weekdays', async () => {
-			syncPlanner(writer, base(), entries(), config());
+			syncPlanner(writer, base(), entries(), config(), beforeBoth);
 			await writer.flush();
 
 			for (let day = 0; day < 7; day++) {
@@ -253,15 +283,53 @@ describe('sync', () => {
 		});
 
 		it('reports the soonest planned meal, not the first in the list', async () => {
-			syncPlanner(writer, base(), entries(), config());
+			syncPlanner(writer, base(), entries(), config(), beforeBoth);
 			await writer.flush();
 
 			expect(adapter.states.get('households.1.planner.nextRecipeName')).to.equal('Tomato Soup');
 			expect(adapter.states.get('households.1.planner.nextCookingDate')).to.equal(1700100000000);
 		});
 
+		it('skips a meal whose cooking day is over', async () => {
+			// Two days after the soup, which stays on the plan until someone
+			// removes it in KitchenOwl.
+			syncPlanner(writer, base(), entries(), config(), 1700100000000 + 2 * 86400000);
+			await writer.flush();
+
+			expect(adapter.states.get('households.1.planner.nextRecipeName')).to.equal('Pancakes');
+			expect(adapter.states.get('households.1.planner.nextCookingDate')).to.equal(1700500000000);
+		});
+
+		it('still counts a meal planned for today', async () => {
+			const midnight = new Date(1700100000000);
+			midnight.setHours(0, 0, 0, 0);
+			const plan: PlannerEntry[] = [
+				{
+					recipe_id: 20,
+					household_id: 1,
+					cooking_date: midnight.getTime(),
+					recipe: { id: 20, name: 'Tonight', household_id: 1 },
+				},
+			];
+
+			// Late in the evening of the day the meal is planned for.
+			syncPlanner(writer, base(), plan, config(), midnight.getTime() + 22 * 3600000);
+			await writer.flush();
+
+			expect(adapter.states.get('households.1.planner.nextRecipeName')).to.equal('Tonight');
+		});
+
+		it('reports no next meal once every planned day has passed', async () => {
+			syncPlanner(writer, base(), entries(), config(), 1800000000000);
+			await writer.flush();
+
+			expect(adapter.states.get('households.1.planner.nextRecipeName')).to.equal('');
+			expect(adapter.states.get('households.1.planner.nextRecipeId')).to.equal(0);
+			expect(adapter.states.get('households.1.planner.nextCookingDate')).to.equal(null);
+		});
+
 		it('handles an empty plan without inventing a next meal', async () => {
-			syncPlanner(writer, base(), [], config());
+			syncPlanner(writer, base(), [], config(), beforeBoth);
 			await writer.flush();
 
 			expect(adapter.states.get('households.1.planner.count')).to.equal(0);
@@ -272,8 +340,7 @@ describe('sync', () => {
 
 	describe('syncExpenses', () => {
 		/** Mirrors the id-to-name map main.ts builds from the household. */
-		const memberNames = (): Map<number, string> =>
-			new Map((household().member ?? []).map(m => [m.id, m.name]));
+		const memberNames = (): Map<number, string> => new Map((household().member ?? []).map(m => [m.id, m.name]));
 
 		const expenses = (): Expense[] => fixture<Expense[]>('expenses');
 		const categories = (): ExpenseCategory[] => fixture<ExpenseCategory[]>('expense-categories');

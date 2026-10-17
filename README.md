@@ -52,8 +52,9 @@ here only to identify the service this adapter connects to.
 
 1. Install the adapter and create an instance.
 2. In KitchenOwl, create a long-lived API token: open your profile, go to **Sessions** and add a long-lived token.
-3. Enter the base URL of your server (for example `https://kitchenowl.example.com`, **without** a trailing `/api`) and
-   the token on the **Connection** tab, then press **Test connection**.
+3. Enter the base URL of your server (for example `https://kitchenowl.example.com`) and the token on the
+   **Connection** tab, then press **Test connection**. The adapter appends `/api` itself, and strips a trailing
+   `/api` if you enter one anyway.
 4. On the **Households and sync** tab, pick the households to synchronize. Leaving the field empty synchronizes every
    household the token can see.
 
@@ -147,8 +148,13 @@ kitchenowl.<instance>
         └── itemsJson, itemCount, categoriesJson, categoryCount, tagsJson, tagCount
 ```
 
-Weekday `0` is Monday. Timestamps are epoch milliseconds, matching what the KitchenOwl API returns. Expense balances
-are rounded to two decimals; the API returns them as raw floats.
+Weekday `0` is Monday. Timestamps are epoch milliseconds, matching what the KitchenOwl API returns. A date that is
+not set reads as empty rather than as epoch 0. Expense balances are rounded to two decimals; the API returns them as
+raw floats.
+
+Renaming a list, recipe, member or category in KitchenOwl renames the matching channel in the object tree. A name you
+edit yourself in the admin UI survives a restart of the adapter, because after a restart there is no telling your
+rename apart from one made upstream.
 
 </details>
 
@@ -160,7 +166,7 @@ re-reads the affected household.
 
 | State | Type | Effect |
 | --- | --- | --- |
-| `households.<id>.shoppingLists.<listId>.addItemByName` | string | Adds an item with that name to the list |
+| `households.<id>.shoppingLists.<listId>.addItemByName` | string | Adds an item to the list. Plain text is the name; JSON sets the description too, e.g. `{"name": "Milk", "description": "2 L"}` |
 | `households.<id>.shoppingLists.<listId>.clear` | button | Removes every item from the list |
 | `households.<id>.shoppingLists.<listId>.items.<itemId>.remove` | button | Removes that item from the list |
 | `households.<id>.shoppingLists.<listId>.items.<itemId>.description` | string | Changes the item description, for example the amount |
@@ -168,7 +174,7 @@ re-reads the affected household.
 | `households.<id>.expenses.recalculateBalances` | button | Asks the server to recompute member balances |
 | `households.<id>.planner.addRecipe` | JSON | Plans a recipe, e.g. `{"recipe_id": 20, "cooking_date": 1700000000000}` |
 | `households.<id>.planner.days.<0-6>.remove` | button | Removes the meal planned on that weekday |
-| `households.<id>.recipes.scrapeUrl` | string | Imports a recipe from a URL; the result lands in `recipes.scrapeResult` |
+| `households.<id>.recipes.scrapeUrl` | string | Imports a recipe from a URL; the scraped recipe lands in `recipes.scrapeResult` as JSON |
 
 ### Messages
 
@@ -192,6 +198,8 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 - **A household has no expenses or planner branch** — those features are enabled per household inside KitchenOwl, and
   the adapter mirrors that.
 - **Self-signed certificate** — turn off **Verify TLS certificate** on the Connection tab.
+- **One household is missing from the tree** — a household the adapter cannot read is logged as a warning and the
+  other households are still updated; `info.lastError` names it. Nothing is deleted from the tree while that lasts.
 
 </details>
 
@@ -207,6 +215,18 @@ sendTo('kitchenowl.0', 'refresh', {}, result => log(JSON.stringify(result)));
 - (n1tr0-5urf3r) A date that is not set now reads as empty instead of 1 January 1970
 - (n1tr0-5urf3r) Expenses name the person who paid instead of exposing a numeric user id
 - (n1tr0-5urf3r) Expense category colours are CSS values, and recipe visibility shows a label
+- (n1tr0-5urf3r) Existing objects are kept in line with the adapter's own definitions, so enabling write access makes the states that are already there writable rather than only the ones created afterwards
+- (n1tr0-5urf3r) A shopping list, recipe, member or category renamed in KitchenOwl is renamed in the object tree as well
+- (n1tr0-5urf3r) Names that come from KitchenOwl are no longer run through the German name table, so a list called "Items" keeps its name
+- (n1tr0-5urf3r) The result of a recipe import reaches `recipes.scrapeResult` instead of being thrown away and the state wiped on the next poll
+- (n1tr0-5urf3r) The next planned meal skips days that are already over
+- (n1tr0-5urf3r) One household that cannot be read no longer costs every other household its update
+- (n1tr0-5urf3r) A refresh requested while a poll is running is carried out afterwards instead of being dropped, and the refresh button is acknowledged
+- (n1tr0-5urf3r) Shopping list items can be added with a description by writing JSON instead of a plain name
+- (n1tr0-5urf3r) A server URL entered with a trailing `/api` is accepted, a request that times out says so instead of reporting an aborted operation, and a rate limited request is retried
+- (n1tr0-5urf3r) Two members whose usernames differ only in punctuation no longer share one branch
+- (n1tr0-5urf3r) `getHouseholds` over the message box keeps the configured TLS setting and no longer leaks its connection when it fails
+- (n1tr0-5urf3r) The object database is only read back when a definition actually changed, which takes around a thousand lookups per household out of every poll
 
 ### 0.0.3 (2026-10-17)
 

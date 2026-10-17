@@ -6,7 +6,8 @@ import * as utils from '@iobroker/adapter-core';
 
 import { KitchenOwlApiError, KitchenOwlClient } from './lib/api';
 import { parseCommand, runCommand } from './lib/commands';
-import { ObjectWriter } from './lib/objects';
+import { connectionOptions, selectHouseholds } from './lib/instance';
+import { type ObjectCache, ObjectWriter } from './lib/objects';
 import {
 	householdBase,
 	type SyncConfig,
@@ -27,6 +28,13 @@ class Kitchenowl extends utils.Adapter {
 	private unloading = false;
 	/** True while a poll runs, so a manual refresh cannot start a second one. */
 	private polling = false;
+	/** Set when a refresh arrives mid-poll, so the request is served afterwards. */
+	private pollAgain = false;
+	/**
+	 * Object definitions already applied, kept across polls. Only a definition
+	 * that actually changed costs an object database round trip.
+	 */
+	private readonly objectCache: ObjectCache = new Map();
 	/** Last known meal plan per household, so `days.<n>.remove` can find its recipe. */
 	private readonly plannerCache = new Map<number, PlannerEntry[]>();
 
@@ -67,9 +75,9 @@ class Kitchenowl extends utils.Adapter {
 			log: message => this.log.debug(message),
 		});
 
-		this.subscribeStates('commands.refresh');
+		await this.subscribeStatesAsync('commands.refresh');
 		if (this.config.enableWrite) {
-			this.subscribeStates('households.*');
+			await this.subscribeStatesAsync('households.*');
 			this.log.info('Write access is enabled: writable states will change data in KitchenOwl.');
 		}
 
@@ -78,7 +86,13 @@ class Kitchenowl extends utils.Adapter {
 
 	/** Reads everything that is enabled and writes it into the object tree. */
 	private async poll(): Promise<void> {
-		if (!this.client || this.unloading || this.polling) {
+		if (!this.client || this.unloading) {
+			return;
+		}
+		if (this.polling) {
+			// Remember the request rather than dropping it: whatever prompted the
+			// refresh may have landed after the running poll read that branch.
+			this.pollAgain = true;
 			return;
 		}
 		this.polling = true;
@@ -91,31 +105,57 @@ class Kitchenowl extends utils.Adapter {
 				ack: true,
 			});
 
-			const households = await this.selectHouseholds();
+			const households = await this.householdsToSync();
 			if (households.length === 0) {
 				this.log.warn('No matching household was found for the configured token.');
 			}
 
-			const writer = new ObjectWriter(this);
+			const writer = new ObjectWriter(this, this.objectCache);
 			writer.channel('households', 'Households', 'folder');
 
+			let failed = 0;
+			let lastHouseholdError = '';
+
 			for (const household of households) {
-				await this.syncOneHousehold(writer, household);
+				try {
+					await this.syncOneHousehold(writer, household);
+				} catch (error) {
+					// A rejected token is fatal for every household, so let it through
+					// instead of softening it into one warning per household.
+					if (error instanceof KitchenOwlApiError && error.isAuthError) {
+						throw error;
+					}
+					failed++;
+					lastHouseholdError = `Household ${household.name} (${household.id}) could not be read: ${(error as Error).message}`;
+					this.log.warn(lastHouseholdError);
+				}
+			}
+
+			// One unreadable household must not cost the others their update, but
+			// if none of them could be read there is nothing to report as success.
+			if (failed > 0 && failed === households.length) {
+				throw new Error(lastHouseholdError);
 			}
 
 			await writer.flush();
 
 			if (this.config.deleteStaleObjects) {
-				const deleted = await writer.prune(['households']);
-				if (deleted > 0) {
-					this.log.debug(`Removed ${deleted} object(s) that no longer exist in KitchenOwl`);
+				if (failed > 0) {
+					// Everything below a household that failed is missing from this
+					// run, and pruning would read that as deleted upstream.
+					this.log.debug('Skipping the cleanup of stale objects: a household could not be read');
+				} else {
+					const deleted = await writer.prune(['households']);
+					if (deleted > 0) {
+						this.log.debug(`Removed ${deleted} object(s) that no longer exist in KitchenOwl`);
+					}
 				}
 			}
 
 			await this.setState('info.connection', true, true);
 			await this.setState('info.lastUpdate', Date.now(), true);
-			await this.setStateChangedAsync('info.lastError', { val: '', ack: true });
-			this.log.debug(`Poll finished for ${households.length} household(s)`);
+			await this.setStateChangedAsync('info.lastError', { val: lastHouseholdError, ack: true });
+			this.log.debug(`Poll finished for ${households.length - failed} of ${households.length} household(s)`);
 		} catch (error) {
 			const message = (error as Error).message;
 			await this.setState('info.connection', false, true);
@@ -128,7 +168,15 @@ class Kitchenowl extends utils.Adapter {
 			}
 		} finally {
 			this.polling = false;
-			this.schedulePoll();
+
+			if (this.pollAgain && !this.unloading) {
+				// A refresh came in while this poll was running; serve it now.
+				this.pollAgain = false;
+				void this.poll();
+			} else {
+				this.pollAgain = false;
+				this.schedulePoll();
+			}
 		}
 	}
 
@@ -191,19 +239,11 @@ class Kitchenowl extends utils.Adapter {
 	}
 
 	/** The households to synchronise, filtered by the instance configuration. */
-	private async selectHouseholds(): Promise<Household[]> {
-		const all = await this.client!.households();
-		const configured = (this.config.householdIds ?? []).map(id => Number(id)).filter(Number.isFinite);
+	private async householdsToSync(): Promise<Household[]> {
+		const { selected, missing } = selectHouseholds(await this.client!.households(), this.config.householdIds);
 
-		if (configured.length === 0) {
-			return all;
-		}
-
-		const selected = all.filter(household => configured.includes(household.id));
-		for (const id of configured) {
-			if (!selected.some(household => household.id === id)) {
-				this.log.warn(`Configured household ${id} is not visible to this token and will be skipped.`);
-			}
+		for (const id of missing) {
+			this.log.warn(`Configured household ${id} is not visible to this token and will be skipped.`);
 		}
 		return selected;
 	}
@@ -255,6 +295,7 @@ class Kitchenowl extends utils.Adapter {
 
 		if (relativeId === 'commands.refresh') {
 			this.log.info('Manual refresh requested');
+			void this.setState(relativeId, { val: true, ack: true });
 			void this.refreshNow();
 			return;
 		}
@@ -279,13 +320,21 @@ class Kitchenowl extends utils.Adapter {
 		}
 
 		try {
-			await runCommand(
+			const result = await runCommand(
 				{ client: this.client, log: this.log },
 				command,
 				state.val,
 				(householdId, day) => this.plannerCache.get(householdId)?.find(entry => entry.day === day)?.recipe_id,
 			);
 			this.log.info(`Command ${command.kind} succeeded for household ${command.householdId}`);
+
+			// The import is the one command with something to hand back.
+			if (command.kind === 'recipes.scrapeUrl') {
+				await this.setState(`households.${command.householdId}.recipes.scrapeResult`, {
+					val: JSON.stringify(result ?? null),
+					ack: true,
+				});
+			}
 
 			// Acknowledge so the state reflects that the command was carried out.
 			await this.setState(relativeId, { val: state.val, ack: true });
@@ -308,13 +357,24 @@ class Kitchenowl extends utils.Adapter {
 		}, delay);
 	}
 
-	/** Cancels the pending poll and runs one immediately. */
-	private async refreshNow(): Promise<void> {
+	/**
+	 * Cancels the pending poll and runs one immediately.
+	 *
+	 * Returns what happened, so that a caller waiting on the message box is not
+	 * told the data is current when the poll has yet to start.
+	 */
+	private async refreshNow(): Promise<string> {
+		if (this.polling) {
+			this.pollAgain = true;
+			return 'A poll is already running; another one follows right after it';
+		}
+
 		if (this.pollTimer) {
 			this.clearTimeout(this.pollTimer);
 			this.pollTimer = undefined;
 		}
 		await this.poll();
+		return 'Refresh finished';
 	}
 
 	/**
@@ -340,9 +400,17 @@ class Kitchenowl extends utils.Adapter {
 					// Called by the admin UI before the instance is configured, so it
 					// builds a throwaway client from the values typed into the form.
 					const client = this.clientFromMessage(obj.message);
-					const households = await client.households();
-					await client.destroy();
-					respond(households.map(household => ({ value: String(household.id), label: household.name })));
+					try {
+						const households = await client.households();
+						respond(
+							households.map(household => ({
+								value: String(household.id),
+								label: household.name,
+							})),
+						);
+					} finally {
+						await client.destroy();
+					}
 					return;
 				}
 
@@ -363,8 +431,7 @@ class Kitchenowl extends utils.Adapter {
 				}
 
 				case 'refresh':
-					await this.refreshNow();
-					respond({ result: 'Refresh finished' });
+					respond({ result: await this.refreshNow() });
 					return;
 
 				default:
@@ -382,27 +449,13 @@ class Kitchenowl extends utils.Adapter {
 	 * @param message - Payload sent with the message
 	 */
 	private clientFromMessage(message: unknown): KitchenOwlClient {
-		const payload = (typeof message === 'object' && message !== null ? message : {}) as Record<string, unknown>;
-		// The admin UI sends whatever is currently typed into the form, so only
-		// trust values that actually arrived as strings.
-		const text = (value: unknown, fallback: string): string =>
-			(typeof value === 'string' ? value : fallback).trim();
-
-		const url = text(payload.url, this.config.url ?? '');
-		const token = text(payload.token, this.config.token ?? '');
-
-		if (!url || !token) {
-			throw new Error('Please enter the server URL and an API token first');
-		}
+		const options = connectionOptions(message, this.config);
 
 		return new KitchenOwlClient({
-			url,
-			token,
-			timeout: Number(payload.requestTimeout) || this.config.requestTimeout || 10000,
+			...options,
 			// One attempt is enough while someone waits in front of the admin UI.
 			retries: 0,
-			rejectUnauthorized: payload.rejectUnauthorized !== false,
-			log: message => this.log.debug(message),
+			log: text => this.log.debug(text),
 		});
 	}
 

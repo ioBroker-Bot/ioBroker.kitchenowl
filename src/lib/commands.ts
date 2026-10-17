@@ -125,6 +125,31 @@ export function parseJsonPayload(value: unknown, what: string): Record<string, u
 }
 
 /**
+ * Reads the value written to an `addItemByName` state.
+ *
+ * Plain text is taken as the item name. A JSON object is accepted as well, so
+ * that the free-text description KitchenOwl keeps the amount in can be set in
+ * the same write: `{"name": "Milk", "description": "2 L"}`.
+ *
+ * @param value - The value written to the state
+ */
+export function parseItemInput(value: ioBroker.StateValue): { name: string; description?: string } {
+	const text = String(value ?? '').trim();
+	if (!text.startsWith('{')) {
+		return { name: text };
+	}
+
+	const payload = parseJsonPayload(text, 'Adding an item');
+	if (typeof payload.name !== 'string') {
+		throw new Error('Adding an item as JSON needs a "name" string');
+	}
+	return {
+		name: payload.name.trim(),
+		description: typeof payload.description === 'string' ? payload.description : undefined,
+	};
+}
+
+/**
  * Executes a write command against KitchenOwl.
  *
  * Resolving the planner day back to a recipe id needs the current plan, so the
@@ -145,11 +170,11 @@ export async function runCommand(
 
 	switch (command.kind) {
 		case 'shoppingList.addItemByName': {
-			const name = String(value ?? '').trim();
+			const { name, description } = parseItemInput(value);
 			if (!name) {
 				throw new Error('Adding an item needs a non-empty name');
 			}
-			return client.addShoppingListItemByName(command.shoppingListId!, name);
+			return client.addShoppingListItemByName(command.shoppingListId!, name, description);
 		}
 
 		case 'shoppingList.clear':

@@ -58,7 +58,7 @@ function slimItem(item) {
 }
 function syncHousehold(writer, client, base, household) {
   var _a, _b, _c, _d, _e, _f;
-  writer.channel(base, household.name, "device");
+  writer.serverChannel(base, household.name, "device");
   writer.value(`${base}.name`, "Name", "string", "text", household.name);
   writer.value(`${base}.description`, "Description", "string", "text", (_a = household.description) != null ? _a : "");
   writer.value(`${base}.language`, "Language", "string", "text", (_b = household.language) != null ? _b : "");
@@ -100,9 +100,10 @@ function syncMembers(writer, client, base, household) {
       return [member.username, (0, import_ids.round2)((_a2 = member.expense_balance) != null ? _a2 : 0)];
     }))
   );
+  const segments = (0, import_ids.memberIds)(members);
   for (const member of members) {
-    const id = `${root}.${(0, import_ids.memberId)(member)}`;
-    writer.channel(id, member.name);
+    const id = `${root}.${segments.get(member.id)}`;
+    writer.serverChannel(id, member.name);
     writer.value(`${id}.id`, "User ID", "number", "value", member.id);
     writer.value(`${id}.name`, "Display name", "string", "text", member.name);
     writer.value(`${id}.username`, "Username", "string", "text", member.username);
@@ -129,7 +130,7 @@ function syncShoppingLists(writer, base, lists, config) {
   for (const list of lists) {
     const id = `${root}.${list.id}`;
     const items = (_a = list.items) != null ? _a : [];
-    writer.channel(id, list.name);
+    writer.serverChannel(id, list.name);
     writer.value(`${id}.name`, "Name", "string", "text", list.name);
     writer.value(`${id}.itemCount`, "Number of items", "number", "value", items.length);
     writer.value(`${id}.itemNames`, "Items as text", "string", "text", items.map((item) => item.name).join(", "));
@@ -138,7 +139,7 @@ function syncShoppingLists(writer, base, lists, config) {
     if (config.enableWrite) {
       writer.state({
         id: `${id}.addItemByName`,
-        name: "Add an item by name",
+        name: 'Add an item by name, or as JSON: {"name": "Milk", "description": "2 L"}',
         type: "string",
         role: "text",
         read: false,
@@ -153,7 +154,7 @@ function syncShoppingLists(writer, base, lists, config) {
     writer.channel(itemsRoot, "Items");
     for (const item of items) {
       const itemId = `${itemsRoot}.${item.id}`;
-      writer.channel(itemId, item.name);
+      writer.serverChannel(itemId, item.name);
       writer.value(`${itemId}.name`, "Name", "string", "text", item.name);
       writer.value(`${itemId}.category`, "Category", "string", "text", (_d = (_c = item.category) == null ? void 0 : _c.name) != null ? _d : "");
       writer.value(`${itemId}.icon`, "Icon key", "string", "text", (_e = item.icon) != null ? _e : "");
@@ -203,15 +204,21 @@ function syncRecipes(writer, client, base, recipes, config) {
       read: false,
       write: true
     });
-    writer.json(`${root}.scrapeResult`, "Result of the last import", null);
-    writer.keep(`${root}.scrapeResult`);
+    writer.state({
+      id: `${root}.scrapeResult`,
+      name: "Result of the last import",
+      type: "string",
+      role: "json",
+      read: true,
+      write: false
+    });
   }
   if (!config.createRecipeObjects) {
     return;
   }
   for (const recipe of recipes) {
     const id = `${root}.${recipe.id}`;
-    writer.channel(id, recipe.name);
+    writer.serverChannel(id, recipe.name);
     writer.value(`${id}.name`, "Name", "string", "text", recipe.name);
     writer.value(`${id}.description`, "Description", "string", "text", (_a = recipe.description) != null ? _a : "");
     writer.value(`${id}.time`, "Total time", "number", "value", (_b = recipe.time) != null ? _b : 0, "min");
@@ -241,7 +248,7 @@ function syncRecipes(writer, client, base, recipes, config) {
     writer.json(`${id}.itemsJson`, "Ingredients", ((_k = recipe.items) != null ? _k : []).map(slimItem));
   }
 }
-function syncPlanner(writer, base, entries, config) {
+function syncPlanner(writer, base, entries, config, now = Date.now()) {
   var _a, _b, _c, _d, _e, _f, _g;
   const root = `${base}.planner`;
   writer.channel(root, "Meal planner");
@@ -260,7 +267,12 @@ function syncPlanner(writer, base, entries, config) {
       };
     })
   );
-  const upcoming = entries.filter((entry) => (0, import_ids.toTimestamp)(entry.cooking_date) !== null).sort((a, b) => {
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const upcoming = entries.filter((entry) => {
+    const date = (0, import_ids.toTimestamp)(entry.cooking_date);
+    return date !== null && date >= today.getTime();
+  }).sort((a, b) => {
     var _a2, _b2;
     return ((_a2 = a.cooking_date) != null ? _a2 : 0) - ((_b2 = b.cooking_date) != null ? _b2 : 0);
   })[0];
@@ -346,7 +358,7 @@ function syncExpenses(writer, base, expenses, categories, overview, config, memb
   writer.channel(categoriesRoot, "Expense categories");
   for (const category of categories) {
     const id = `${categoriesRoot}.${category.id}`;
-    writer.channel(id, category.name);
+    writer.serverChannel(id, category.name);
     writer.value(`${id}.name`, "Name", "string", "text", category.name);
     writer.value(`${id}.budget`, "Budget", "number", "value", (_c = category.budget) != null ? _c : 0);
     writer.value(`${id}.color`, "Colour", "string", "level.color.rgb", argbToHex(category.color));

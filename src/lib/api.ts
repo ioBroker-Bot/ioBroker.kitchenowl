@@ -31,6 +31,12 @@ export const HEALTH_PATH = '/api/health/8M4F88S8ooi4sMbLBfkkV7ctWwgibW6V';
 /** The server returns at most this many expenses per request; paging uses `startAfterId`. */
 export const EXPENSE_PAGE_SIZE = 30;
 
+/**
+ * Client errors worth another attempt: a rate limit and a request timeout both
+ * pass on their own, unlike the 401 or 404 that the retry loop gives up on.
+ */
+const RETRYABLE_CLIENT_ERRORS = new Set([408, 429]);
+
 /** Per-request options used internally by the transport. */
 interface RequestOptions {
 	/** JSON body to send; omit for requests without one. */
@@ -99,7 +105,12 @@ export class KitchenOwlClient {
 	 * @param options - Connection details, timeouts and retry behaviour
 	 */
 	public constructor(options: KitchenOwlClientOptions) {
-		this.baseUrl = options.url.trim().replace(/\/+$/, '');
+		// KitchenOwl serves its API below the instance root, so a URL that already
+		// ends in /api would otherwise produce /api/api/... and a puzzling 404.
+		this.baseUrl = options.url
+			.trim()
+			.replace(/\/+$/, '')
+			.replace(/\/api$/i, '');
 		this.token = options.token.trim();
 		this.timeout = options.timeout ?? 10000;
 		this.retries = options.retries ?? 2;
@@ -446,7 +457,12 @@ export class KitchenOwlClient {
 			} catch (error) {
 				lastError = error as Error;
 
-				if (error instanceof KitchenOwlApiError && error.status >= 400 && error.status < 500) {
+				if (
+					error instanceof KitchenOwlApiError &&
+					error.status >= 400 &&
+					error.status < 500 &&
+					!RETRYABLE_CLIENT_ERRORS.has(error.status)
+				) {
 					throw error;
 				}
 				if (this.destroyed) {
@@ -468,11 +484,12 @@ export class KitchenOwlClient {
 			headers['Content-Type'] = 'application/json';
 		}
 
+		const timeout = AbortSignal.timeout(this.timeout);
 		const init: RequestInit = {
 			method,
 			headers,
 			// Fail the request on timeout, and also when the adapter is unloading.
-			signal: AbortSignal.any([AbortSignal.timeout(this.timeout), this.abortController.signal]),
+			signal: AbortSignal.any([timeout, this.abortController.signal]),
 		};
 		if (options.body !== undefined) {
 			init.body = JSON.stringify(options.body);
@@ -481,7 +498,17 @@ export class KitchenOwlClient {
 			init.dispatcher = this.dispatcher;
 		}
 
-		const response = await fetch(`${this.baseUrl}${path}`, init);
+		let response;
+		try {
+			response = await fetch(`${this.baseUrl}${path}`, init);
+		} catch (error) {
+			// "This operation was aborted" says nothing to someone reading
+			// info.lastError, so name the timeout that actually fired.
+			if (timeout.aborted) {
+				throw new Error(`${method} ${path} timed out after ${this.timeout} ms`);
+			}
+			throw error;
+		}
 
 		if (!response.ok) {
 			// KitchenOwl answers errors with a short plain-text body.

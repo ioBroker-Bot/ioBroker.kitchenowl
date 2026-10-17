@@ -26,14 +26,52 @@ export interface ChannelDef {
 	id: string;
 	name: string;
 	type?: 'channel' | 'device' | 'folder';
+	/** False for names that come from KitchenOwl and must not be translated. */
+	translate?: boolean;
+}
+
+/**
+ * Object definitions already applied, keyed by id, valued by their signature.
+ *
+ * The adapter keeps one of these across polls: a definition that has not moved
+ * since the last poll needs no object database round trip at all, which takes
+ * roughly a thousand reads per household out of every single poll.
+ */
+export type ObjectCache = Map<string, string>;
+
+/** The object shape the writer hands to the adapter. */
+interface DesiredObject {
+	type: ioBroker.ObjectType;
+	common: Record<string, unknown>;
+	native: Record<string, unknown>;
+}
+
+/**
+ * Common fields the adapter owns and keeps in line with its own definitions.
+ *
+ * `name` is deliberately missing: it may have been edited in the admin UI, and
+ * after a restart there is no way to tell that apart from a rename upstream.
+ */
+const MANAGED_FIELDS = ['type', 'role', 'read', 'write', 'unit', 'states'] as const;
+
+/**
+ * Whether an existing object's adapter-owned fields match the definition.
+ *
+ * @param existing - Common block as the object database has it
+ * @param desired - Common block this run wants
+ */
+function managedFieldsDiffer(existing: Record<string, unknown>, desired: Record<string, unknown>): boolean {
+	return MANAGED_FIELDS.some(field => JSON.stringify(existing[field]) !== JSON.stringify(desired[field]));
 }
 
 /**
  * Collects the objects and values one poll produced, then applies them.
  *
  * Writing goes through `setStateChanged` so that an unchanged poll does not
- * churn the states database, and object creation uses `setObjectNotExistsAsync`
- * so that names a user edited in the admin UI survive.
+ * churn the states database. Objects are created once and afterwards only
+ * corrected where the adapter's own fields drifted, so that a role or a write
+ * flag changed by an adapter update reaches installations that already have
+ * the object, while a name someone edited in the admin UI survives.
  */
 export class ObjectWriter {
 	private readonly channels: ChannelDef[] = [];
@@ -43,11 +81,15 @@ export class ObjectWriter {
 
 	/**
 	 * @param adapter - Adapter instance the objects belong to
+	 * @param cache - Definitions already applied, shared across polls
 	 */
-	public constructor(private readonly adapter: utils.AdapterInstance) {}
+	public constructor(
+		private readonly adapter: utils.AdapterInstance,
+		private readonly cache: ObjectCache = new Map(),
+	) {}
 
 	/**
-	 * Declares a grouping node.
+	 * Declares a grouping node the adapter names itself.
 	 *
 	 * @param id - Namespace-relative object id
 	 * @param name - Human readable name shown in the object tree
@@ -55,6 +97,21 @@ export class ObjectWriter {
 	 */
 	public channel(id: string, name: string, type: ChannelDef['type'] = 'channel'): void {
 		this.channels.push({ id, name, type });
+		this.seen.add(id);
+	}
+
+	/**
+	 * Declares a grouping node whose name comes from KitchenOwl.
+	 *
+	 * Such a name is stored as it is: running it through the translation table
+	 * would rename a shopping list called "Items" to "Artikel".
+	 *
+	 * @param id - Namespace-relative object id
+	 * @param name - Name as KitchenOwl returned it
+	 * @param type - Channel, device or folder
+	 */
+	public serverChannel(id: string, name: string, type: ChannelDef['type'] = 'channel'): void {
+		this.channels.push({ id, name, type, translate: false });
 		this.seen.add(id);
 	}
 
@@ -136,18 +193,18 @@ export class ObjectWriter {
 		return this.seen.has(id);
 	}
 
-	/** Creates any missing objects and writes every collected value. */
+	/** Creates missing objects, corrects changed ones and writes every collected value. */
 	public async flush(): Promise<void> {
 		for (const channel of this.channels) {
-			await this.adapter.setObjectNotExistsAsync(channel.id, {
+			await this.upsert(channel.id, {
 				type: channel.type ?? 'channel',
-				common: { name: localize(channel.name) },
+				common: { name: channel.translate === false ? channel.name : localize(channel.name) },
 				native: {},
 			});
 		}
 
 		for (const def of this.states) {
-			await this.adapter.setObjectNotExistsAsync(def.id, {
+			await this.upsert(def.id, {
 				type: 'state',
 				common: {
 					name: localize(def.name),
@@ -166,6 +223,47 @@ export class ObjectWriter {
 				await this.adapter.setStateChangedAsync(def.id, { val: def.value, ack: true });
 			}
 		}
+	}
+
+	/**
+	 * Creates an object, or brings an existing one in line with the definition.
+	 *
+	 * @param id - Namespace-relative object id
+	 * @param desired - Object as this run wants it to look
+	 */
+	private async upsert(id: string, desired: DesiredObject): Promise<void> {
+		const signature = JSON.stringify(desired);
+		const applied = this.cache.get(id);
+
+		if (applied === signature) {
+			return;
+		}
+
+		if (applied !== undefined) {
+			// An earlier poll in this run of the adapter wrote the object and the
+			// definition has moved on since, a list renamed in KitchenOwl for
+			// example, so the new name is this adapter's to apply.
+			await this.adapter.extendObjectAsync(id, desired as ioBroker.PartialObject);
+			this.cache.set(id, signature);
+			return;
+		}
+
+		const existing = await this.adapter.getObjectAsync(id);
+		if (!existing) {
+			await this.adapter.setObjectNotExistsAsync(id, desired as ioBroker.SettableObject);
+			this.cache.set(id, signature);
+			return;
+		}
+
+		// The object outlived an adapter restart, so a name that differs may just
+		// as well have been edited in the admin UI. The rest is the adapter's.
+		if (existing.type !== desired.type || managedFieldsDiffer(existing.common, desired.common)) {
+			await this.adapter.extendObjectAsync(id, {
+				...desired,
+				common: { ...desired.common, name: existing.common.name },
+			} as ioBroker.PartialObject);
+		}
+		this.cache.set(id, signature);
 	}
 
 	/**
@@ -204,10 +302,12 @@ export class ObjectWriter {
 		for (const id of stale) {
 			// Skip anything already removed as part of a parent's recursive delete.
 			if (stale.some(other => other !== id && id.startsWith(`${other}.`) && id.length > other.length)) {
+				this.forget(id);
 				continue;
 			}
 			try {
 				await this.adapter.delObjectAsync(id, { recursive: true });
+				this.forget(id);
 				deleted++;
 			} catch (error) {
 				this.adapter.log.warn(`Could not delete stale object ${id}: ${(error as Error).message}`);
@@ -215,5 +315,20 @@ export class ObjectWriter {
 		}
 
 		return deleted;
+	}
+
+	/**
+	 * Drops a deleted object and its children from the definition cache, so that
+	 * a branch that comes back is written out again rather than assumed current.
+	 *
+	 * @param id - Namespace-relative object id that no longer exists
+	 */
+	private forget(id: string): void {
+		this.cache.delete(id);
+		for (const cached of this.cache.keys()) {
+			if (cached.startsWith(`${id}.`)) {
+				this.cache.delete(cached);
+			}
+		}
 	}
 }

@@ -48,6 +48,31 @@ export function memberId(member: IdentifiableMember): string {
 }
 
 /**
+ * Id segments for a group of members, keyed by user id.
+ *
+ * Two usernames can collapse onto the same segment: "a.b" and "a b" both come
+ * out as "a_b", and the two members would then share one branch, the second
+ * quietly overwriting the first. Where that happens the user id is appended to
+ * every member of the group, so the names stay readable for everyone else.
+ *
+ * @param members - Members of one household
+ */
+export function memberIds(members: IdentifiableMember[]): Map<number, string> {
+	const occurrences = new Map<string, number>();
+	for (const member of members) {
+		const segment = memberId(member);
+		occurrences.set(segment, (occurrences.get(segment) ?? 0) + 1);
+	}
+
+	const segments = new Map<number, string>();
+	for (const member of members) {
+		const segment = memberId(member);
+		segments.set(member.id, occurrences.get(segment) === 1 ? segment : `${segment}_${member.id}`);
+	}
+	return segments;
+}
+
+/**
  * Rounds a float to two decimals, for the balances the API returns unrounded.
  *
  * @param value - Value to publish

@@ -19,6 +19,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var commands_exports = {};
 __export(commands_exports, {
   parseCommand: () => parseCommand,
+  parseItemInput: () => parseItemInput,
   parseJsonPayload: () => parseJsonPayload,
   runCommand: () => runCommand
 });
@@ -97,15 +98,29 @@ function parseJsonPayload(value, what) {
   }
   return parsed;
 }
+function parseItemInput(value) {
+  const text = String(value != null ? value : "").trim();
+  if (!text.startsWith("{")) {
+    return { name: text };
+  }
+  const payload = parseJsonPayload(text, "Adding an item");
+  if (typeof payload.name !== "string") {
+    throw new Error('Adding an item as JSON needs a "name" string');
+  }
+  return {
+    name: payload.name.trim(),
+    description: typeof payload.description === "string" ? payload.description : void 0
+  };
+}
 async function runCommand(context, command, value, recipeIdForDay) {
   const { client } = context;
   switch (command.kind) {
     case "shoppingList.addItemByName": {
-      const name = String(value != null ? value : "").trim();
+      const { name, description } = parseItemInput(value);
       if (!name) {
         throw new Error("Adding an item needs a non-empty name");
       }
-      return client.addShoppingListItemByName(command.shoppingListId, name);
+      return client.addShoppingListItemByName(command.shoppingListId, name, description);
     }
     case "shoppingList.clear":
       return client.clearShoppingList(command.shoppingListId);
@@ -152,6 +167,7 @@ async function runCommand(context, command, value, recipeIdForDay) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   parseCommand,
+  parseItemInput,
   parseJsonPayload,
   runCommand
 });

@@ -1,5 +1,5 @@
 import type { KitchenOwlClient } from './api';
-import { memberId, round2, toId, toTimestamp } from './ids';
+import { memberIds, round2, toId, toTimestamp } from './ids';
 import type { ObjectWriter } from './objects';
 import {
 	type Category,
@@ -119,7 +119,7 @@ export function syncHousehold(
 	base: string,
 	household: Household,
 ): void {
-	writer.channel(base, household.name, 'device');
+	writer.serverChannel(base, household.name, 'device');
 
 	writer.value(`${base}.name`, 'Name', 'string', 'text', household.name);
 	writer.value(`${base}.description`, 'Description', 'string', 'text', household.description ?? '');
@@ -169,9 +169,11 @@ export function syncMembers(writer: ObjectWriter, client: KitchenOwlClient, base
 		Object.fromEntries(members.map(member => [member.username, round2(member.expense_balance ?? 0)])),
 	);
 
+	const segments = memberIds(members);
+
 	for (const member of members) {
-		const id = `${root}.${memberId(member)}`;
-		writer.channel(id, member.name);
+		const id = `${root}.${segments.get(member.id)}`;
+		writer.serverChannel(id, member.name);
 
 		writer.value(`${id}.id`, 'User ID', 'number', 'value', member.id);
 		writer.value(`${id}.name`, 'Display name', 'string', 'text', member.name);
@@ -208,7 +210,7 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 		const id = `${root}.${list.id}`;
 		const items = list.items ?? [];
 
-		writer.channel(id, list.name);
+		writer.serverChannel(id, list.name);
 		writer.value(`${id}.name`, 'Name', 'string', 'text', list.name);
 		writer.value(`${id}.itemCount`, 'Number of items', 'number', 'value', items.length);
 		writer.value(`${id}.itemNames`, 'Items as text', 'string', 'text', items.map(item => item.name).join(', '));
@@ -218,7 +220,7 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 		if (config.enableWrite) {
 			writer.state({
 				id: `${id}.addItemByName`,
-				name: 'Add an item by name',
+				name: 'Add an item by name, or as JSON: {"name": "Milk", "description": "2 L"}',
 				type: 'string',
 				role: 'text',
 				read: false,
@@ -236,7 +238,7 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 
 		for (const item of items) {
 			const itemId = `${itemsRoot}.${item.id}`;
-			writer.channel(itemId, item.name);
+			writer.serverChannel(itemId, item.name);
 
 			writer.value(`${itemId}.name`, 'Name', 'string', 'text', item.name);
 			writer.value(`${itemId}.category`, 'Category', 'string', 'text', item.category?.name ?? '');
@@ -302,9 +304,17 @@ export function syncRecipes(
 			read: false,
 			write: true,
 		});
-		writer.json(`${root}.scrapeResult`, 'Result of the last import', null);
-		// The result state is written by the command handler, not by the poll.
-		writer.keep(`${root}.scrapeResult`);
+		// Declared without a value on purpose: the import command fills this in,
+		// and a poll that published its own value would wipe the result seconds
+		// after the import that produced it.
+		writer.state({
+			id: `${root}.scrapeResult`,
+			name: 'Result of the last import',
+			type: 'string',
+			role: 'json',
+			read: true,
+			write: false,
+		});
 	}
 
 	if (!config.createRecipeObjects) {
@@ -313,7 +323,7 @@ export function syncRecipes(
 
 	for (const recipe of recipes) {
 		const id = `${root}.${recipe.id}`;
-		writer.channel(id, recipe.name);
+		writer.serverChannel(id, recipe.name);
 
 		writer.value(`${id}.name`, 'Name', 'string', 'text', recipe.name);
 		writer.value(`${id}.description`, 'Description', 'string', 'text', recipe.description ?? '');
@@ -352,8 +362,15 @@ export function syncRecipes(
  * @param base - Namespace-relative id of the household branch
  * @param entries - Planner entries of the household
  * @param config - Which branches and granularity the user enabled
+ * @param now - Clock reading used to decide which meals are still ahead
  */
-export function syncPlanner(writer: ObjectWriter, base: string, entries: PlannerEntry[], config: SyncConfig): void {
+export function syncPlanner(
+	writer: ObjectWriter,
+	base: string,
+	entries: PlannerEntry[],
+	config: SyncConfig,
+	now: number = Date.now(),
+): void {
 	const root = `${base}.planner`;
 
 	writer.channel(root, 'Meal planner');
@@ -370,9 +387,16 @@ export function syncPlanner(writer: ObjectWriter, base: string, entries: Planner
 		})),
 	);
 
-	// The soonest entry that carries a real date, so a script can show "what's next".
+	// The soonest entry that is still ahead, so a script can show "what's next".
+	// A meal is counted for the whole of its cooking day: KitchenOwl stores the
+	// date at midnight, and a meal planned for tonight is still the next one.
+	const today = new Date(now);
+	today.setHours(0, 0, 0, 0);
 	const upcoming = entries
-		.filter(entry => toTimestamp(entry.cooking_date) !== null)
+		.filter(entry => {
+			const date = toTimestamp(entry.cooking_date);
+			return date !== null && date >= today.getTime();
+		})
 		.sort((a, b) => (a.cooking_date ?? 0) - (b.cooking_date ?? 0))[0];
 
 	writer.value(`${root}.nextRecipeName`, 'Next planned meal', 'string', 'text', upcoming?.recipe?.name ?? '');
@@ -425,6 +449,7 @@ export function syncPlanner(writer: ObjectWriter, base: string, entries: Planner
  * @param categories - Expense or item categories of the household
  * @param overview - Spending totals grouped by period
  * @param config - Which branches and granularity the user enabled
+ * @param memberNames - Display name of every member, keyed by user id
  */
 export function syncExpenses(
 	writer: ObjectWriter,
@@ -435,7 +460,11 @@ export function syncExpenses(
 	config: SyncConfig,
 	memberNames: Map<number, string> = new Map(),
 ): void {
-	/** Falls back to the raw id when the payer is no longer a member. */
+	/**
+	 * Falls back to the raw id when the payer is no longer a member.
+	 *
+	 * @param userId - Id of the member who paid, if the expense names one
+	 */
 	const payer = (userId: number | undefined): string =>
 		userId === undefined ? '' : (memberNames.get(userId) ?? `#${userId}`);
 
@@ -487,7 +516,7 @@ export function syncExpenses(
 
 	for (const category of categories) {
 		const id = `${categoriesRoot}.${category.id}`;
-		writer.channel(id, category.name);
+		writer.serverChannel(id, category.name);
 
 		writer.value(`${id}.name`, 'Name', 'string', 'text', category.name);
 		writer.value(`${id}.budget`, 'Budget', 'number', 'value', category.budget ?? 0);

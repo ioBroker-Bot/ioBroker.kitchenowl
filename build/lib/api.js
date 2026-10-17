@@ -29,6 +29,7 @@ var import_undici = require("undici");
 var import_types = require("./types");
 const HEALTH_PATH = "/api/health/8M4F88S8ooi4sMbLBfkkV7ctWwgibW6V";
 const EXPENSE_PAGE_SIZE = 30;
+const RETRYABLE_CLIENT_ERRORS = /* @__PURE__ */ new Set([408, 429]);
 class KitchenOwlApiError extends Error {
   /**
    * @param message - Error message
@@ -61,7 +62,7 @@ class KitchenOwlClient {
    */
   constructor(options) {
     var _a, _b, _c;
-    this.baseUrl = options.url.trim().replace(/\/+$/, "");
+    this.baseUrl = options.url.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
     this.token = options.token.trim();
     this.timeout = (_a = options.timeout) != null ? _a : 1e4;
     this.retries = (_b = options.retries) != null ? _b : 2;
@@ -360,7 +361,7 @@ class KitchenOwlClient {
         return await this.perform(method, path, options);
       } catch (error) {
         lastError = error;
-        if (error instanceof KitchenOwlApiError && error.status >= 400 && error.status < 500) {
+        if (error instanceof KitchenOwlApiError && error.status >= 400 && error.status < 500 && !RETRYABLE_CLIENT_ERRORS.has(error.status)) {
           throw error;
         }
         if (this.destroyed) {
@@ -379,11 +380,12 @@ class KitchenOwlClient {
     if (options.body !== void 0) {
       headers["Content-Type"] = "application/json";
     }
+    const timeout = AbortSignal.timeout(this.timeout);
     const init = {
       method,
       headers,
       // Fail the request on timeout, and also when the adapter is unloading.
-      signal: AbortSignal.any([AbortSignal.timeout(this.timeout), this.abortController.signal])
+      signal: AbortSignal.any([timeout, this.abortController.signal])
     };
     if (options.body !== void 0) {
       init.body = JSON.stringify(options.body);
@@ -391,7 +393,15 @@ class KitchenOwlClient {
     if (this.dispatcher) {
       init.dispatcher = this.dispatcher;
     }
-    const response = await (0, import_undici.fetch)(`${this.baseUrl}${path}`, init);
+    let response;
+    try {
+      response = await (0, import_undici.fetch)(`${this.baseUrl}${path}`, init);
+    } catch (error) {
+      if (timeout.aborted) {
+        throw new Error(`${method} ${path} timed out after ${this.timeout} ms`);
+      }
+      throw error;
+    }
     if (!response.ok) {
       const detail = (await response.text().catch(() => "")).trim().slice(0, 200);
       throw new KitchenOwlApiError(

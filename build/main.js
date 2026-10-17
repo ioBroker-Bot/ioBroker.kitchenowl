@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_api = require("./lib/api");
 var import_commands = require("./lib/commands");
+var import_instance = require("./lib/instance");
 var import_objects = require("./lib/objects");
 var import_sync = require("./lib/sync");
 class Kitchenowl extends utils.Adapter {
@@ -33,6 +34,13 @@ class Kitchenowl extends utils.Adapter {
   unloading = false;
   /** True while a poll runs, so a manual refresh cannot start a second one. */
   polling = false;
+  /** Set when a refresh arrives mid-poll, so the request is served afterwards. */
+  pollAgain = false;
+  /**
+   * Object definitions already applied, kept across polls. Only a definition
+   * that actually changed costs an object database round trip.
+   */
+  objectCache = /* @__PURE__ */ new Map();
   /** Last known meal plan per household, so `days.<n>.remove` can find its recipe. */
   plannerCache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
@@ -67,16 +75,20 @@ class Kitchenowl extends utils.Adapter {
       rejectUnauthorized: this.config.rejectUnauthorized,
       log: (message) => this.log.debug(message)
     });
-    this.subscribeStates("commands.refresh");
+    await this.subscribeStatesAsync("commands.refresh");
     if (this.config.enableWrite) {
-      this.subscribeStates("households.*");
+      await this.subscribeStatesAsync("households.*");
       this.log.info("Write access is enabled: writable states will change data in KitchenOwl.");
     }
     await this.poll();
   }
   /** Reads everything that is enabled and writes it into the object tree. */
   async poll() {
-    if (!this.client || this.unloading || this.polling) {
+    if (!this.client || this.unloading) {
+      return;
+    }
+    if (this.polling) {
+      this.pollAgain = true;
       return;
     }
     this.polling = true;
@@ -87,26 +99,44 @@ class Kitchenowl extends utils.Adapter {
         val: health.min_frontend_version,
         ack: true
       });
-      const households = await this.selectHouseholds();
+      const households = await this.householdsToSync();
       if (households.length === 0) {
         this.log.warn("No matching household was found for the configured token.");
       }
-      const writer = new import_objects.ObjectWriter(this);
+      const writer = new import_objects.ObjectWriter(this, this.objectCache);
       writer.channel("households", "Households", "folder");
+      let failed = 0;
+      let lastHouseholdError = "";
       for (const household of households) {
-        await this.syncOneHousehold(writer, household);
+        try {
+          await this.syncOneHousehold(writer, household);
+        } catch (error) {
+          if (error instanceof import_api.KitchenOwlApiError && error.isAuthError) {
+            throw error;
+          }
+          failed++;
+          lastHouseholdError = `Household ${household.name} (${household.id}) could not be read: ${error.message}`;
+          this.log.warn(lastHouseholdError);
+        }
+      }
+      if (failed > 0 && failed === households.length) {
+        throw new Error(lastHouseholdError);
       }
       await writer.flush();
       if (this.config.deleteStaleObjects) {
-        const deleted = await writer.prune(["households"]);
-        if (deleted > 0) {
-          this.log.debug(`Removed ${deleted} object(s) that no longer exist in KitchenOwl`);
+        if (failed > 0) {
+          this.log.debug("Skipping the cleanup of stale objects: a household could not be read");
+        } else {
+          const deleted = await writer.prune(["households"]);
+          if (deleted > 0) {
+            this.log.debug(`Removed ${deleted} object(s) that no longer exist in KitchenOwl`);
+          }
         }
       }
       await this.setState("info.connection", true, true);
       await this.setState("info.lastUpdate", Date.now(), true);
-      await this.setStateChangedAsync("info.lastError", { val: "", ack: true });
-      this.log.debug(`Poll finished for ${households.length} household(s)`);
+      await this.setStateChangedAsync("info.lastError", { val: lastHouseholdError, ack: true });
+      this.log.debug(`Poll finished for ${households.length - failed} of ${households.length} household(s)`);
     } catch (error) {
       const message = error.message;
       await this.setState("info.connection", false, true);
@@ -118,7 +148,13 @@ class Kitchenowl extends utils.Adapter {
       }
     } finally {
       this.polling = false;
-      this.schedulePoll();
+      if (this.pollAgain && !this.unloading) {
+        this.pollAgain = false;
+        void this.poll();
+      } else {
+        this.pollAgain = false;
+        this.schedulePoll();
+      }
     }
   }
   /**
@@ -171,18 +207,10 @@ class Kitchenowl extends utils.Adapter {
     }
   }
   /** The households to synchronise, filtered by the instance configuration. */
-  async selectHouseholds() {
-    var _a;
-    const all = await this.client.households();
-    const configured = ((_a = this.config.householdIds) != null ? _a : []).map((id) => Number(id)).filter(Number.isFinite);
-    if (configured.length === 0) {
-      return all;
-    }
-    const selected = all.filter((household) => configured.includes(household.id));
-    for (const id of configured) {
-      if (!selected.some((household) => household.id === id)) {
-        this.log.warn(`Configured household ${id} is not visible to this token and will be skipped.`);
-      }
+  async householdsToSync() {
+    const { selected, missing } = (0, import_instance.selectHouseholds)(await this.client.households(), this.config.householdIds);
+    for (const id of missing) {
+      this.log.warn(`Configured household ${id} is not visible to this token and will be skipped.`);
     }
     return selected;
   }
@@ -227,6 +255,7 @@ class Kitchenowl extends utils.Adapter {
     const relativeId = id.startsWith(`${this.namespace}.`) ? id.slice(this.namespace.length + 1) : id;
     if (relativeId === "commands.refresh") {
       this.log.info("Manual refresh requested");
+      void this.setState(relativeId, { val: true, ack: true });
       void this.refreshNow();
       return;
     }
@@ -247,7 +276,7 @@ class Kitchenowl extends utils.Adapter {
       return;
     }
     try {
-      await (0, import_commands.runCommand)(
+      const result = await (0, import_commands.runCommand)(
         { client: this.client, log: this.log },
         command,
         state.val,
@@ -257,6 +286,12 @@ class Kitchenowl extends utils.Adapter {
         }
       );
       this.log.info(`Command ${command.kind} succeeded for household ${command.householdId}`);
+      if (command.kind === "recipes.scrapeUrl") {
+        await this.setState(`households.${command.householdId}.recipes.scrapeResult`, {
+          val: JSON.stringify(result != null ? result : null),
+          ack: true
+        });
+      }
       await this.setState(relativeId, { val: state.val, ack: true });
       this.scheduleRefresh();
     } catch (error) {
@@ -276,13 +311,23 @@ class Kitchenowl extends utils.Adapter {
       void this.refreshNow();
     }, delay);
   }
-  /** Cancels the pending poll and runs one immediately. */
+  /**
+   * Cancels the pending poll and runs one immediately.
+   *
+   * Returns what happened, so that a caller waiting on the message box is not
+   * told the data is current when the poll has yet to start.
+   */
   async refreshNow() {
+    if (this.polling) {
+      this.pollAgain = true;
+      return "A poll is already running; another one follows right after it";
+    }
     if (this.pollTimer) {
       this.clearTimeout(this.pollTimer);
       this.pollTimer = void 0;
     }
     await this.poll();
+    return "Refresh finished";
   }
   /**
    * Some message was sent to this instance over message box.
@@ -303,9 +348,17 @@ class Kitchenowl extends utils.Adapter {
       switch (obj.command) {
         case "getHouseholds": {
           const client = this.clientFromMessage(obj.message);
-          const households = await client.households();
-          await client.destroy();
-          respond(households.map((household) => ({ value: String(household.id), label: household.name })));
+          try {
+            const households = await client.households();
+            respond(
+              households.map((household) => ({
+                value: String(household.id),
+                label: household.name
+              }))
+            );
+          } finally {
+            await client.destroy();
+          }
           return;
         }
         case "testConnection": {
@@ -322,8 +375,7 @@ class Kitchenowl extends utils.Adapter {
           return;
         }
         case "refresh":
-          await this.refreshNow();
-          respond({ result: "Refresh finished" });
+          respond({ result: await this.refreshNow() });
           return;
         default:
           respond({ error: `Unknown command: ${obj.command}` });
@@ -339,22 +391,12 @@ class Kitchenowl extends utils.Adapter {
    * @param message - Payload sent with the message
    */
   clientFromMessage(message) {
-    var _a, _b;
-    const payload = typeof message === "object" && message !== null ? message : {};
-    const text = (value, fallback) => (typeof value === "string" ? value : fallback).trim();
-    const url = text(payload.url, (_a = this.config.url) != null ? _a : "");
-    const token = text(payload.token, (_b = this.config.token) != null ? _b : "");
-    if (!url || !token) {
-      throw new Error("Please enter the server URL and an API token first");
-    }
+    const options = (0, import_instance.connectionOptions)(message, this.config);
     return new import_api.KitchenOwlClient({
-      url,
-      token,
-      timeout: Number(payload.requestTimeout) || this.config.requestTimeout || 1e4,
+      ...options,
       // One attempt is enough while someone waits in front of the admin UI.
       retries: 0,
-      rejectUnauthorized: payload.rejectUnauthorized !== false,
-      log: (message2) => this.log.debug(message2)
+      log: (text) => this.log.debug(text)
     });
   }
   /**

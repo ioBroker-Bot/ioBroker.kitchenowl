@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { memberId, round2, toId, toTimestamp } from './ids';
+import { memberId, memberIds, round2, toId, toTimestamp } from './ids';
 
 describe('ids', () => {
 	describe('toId', () => {
@@ -58,5 +58,35 @@ describe('ids', () => {
 			expect(toTimestamp(undefined)).to.equal(null);
 			expect(toTimestamp(Number.NaN)).to.equal(null);
 		});
+	});
+});
+
+describe('memberIds', () => {
+	it('keeps the readable segment when nothing collides', () => {
+		const segments = memberIds([
+			{ id: 1, username: 'alice' },
+			{ id: 2, username: 'bob' },
+		]);
+
+		expect(segments.get(1)).to.equal('alice');
+		expect(segments.get(2)).to.equal('bob');
+	});
+
+	it('separates members whose usernames fold onto the same segment', () => {
+		// Both would become "a_b", and the second would take over the first's branch.
+		const segments = memberIds([
+			{ id: 4, username: 'a.b' },
+			{ id: 7, username: 'a b' },
+		]);
+
+		expect(segments.get(4)).to.equal('a_b_4');
+		expect(segments.get(7)).to.equal('a_b_7');
+		expect(segments.get(4)).to.not.equal(segments.get(7));
+	});
+
+	it('falls back to the user id for a name with nothing printable in it', () => {
+		const segments = memberIds([{ id: 3, username: '🥕', name: '🥕' }]);
+
+		expect(segments.get(3)).to.equal('user_3');
 	});
 });

@@ -11,7 +11,8 @@ const GERMAN: Record<string, string> = {
 	'Adapter commands': 'Adapterbefehle',
 	'Add an expense, as JSON: {"name": "Groceries", "amount": 12.5, "paid_by_id": 1}':
 		'Ausgabe anlegen, als JSON: {"name": "Einkauf", "amount": 12.5, "paid_by_id": 1}',
-	'Add an item by name': 'Artikel über den Namen hinzufügen',
+	'Add an item by name, or as JSON: {"name": "Milk", "description": "2 L"}':
+		'Artikel hinzufügen, über den Namen oder als JSON: {"name": "Milch", "description": "2 l"}',
 	'All item categories': 'Alle Artikelkategorien',
 	'All items on the list': 'Alle Artikel auf der Liste',
 	'All known items': 'Alle bekannten Artikel',
@@ -72,7 +73,6 @@ const GERMAN: Record<string, string> = {
 	'Planned weekdays': 'Geplante Wochentage',
 	'Planner feature enabled': 'Planerfunktion aktiviert',
 	'Preparation time': 'Vorbereitungszeit',
-	'Raw household object': 'Rohes Haushaltsobjekt',
 	'Recalculate member balances': 'Mitgliedersalden neu berechnen',
 	'Recent expenses': 'Aktuelle Ausgaben',
 	'Recently removed items': 'Kürzlich entfernte Artikel',

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { parseCommand, parseJsonPayload, runCommand } from './commands';
+import { parseCommand, parseItemInput, parseJsonPayload, runCommand } from './commands';
 import type { KitchenOwlClient } from './api';
 
 describe('commands', () => {
@@ -74,6 +74,35 @@ describe('commands', () => {
 		});
 	});
 
+	describe('parseItemInput', () => {
+		it('takes plain text as the item name', () => {
+			expect(parseItemInput('  Bread  ')).to.deep.equal({ name: 'Bread' });
+		});
+
+		it('takes a name and a description from a JSON object', () => {
+			expect(parseItemInput('{"name": " Milk ", "description": "2 L"}')).to.deep.equal({
+				name: 'Milk',
+				description: '2 L',
+			});
+		});
+
+		it('leaves out a description that is not text', () => {
+			expect(parseItemInput('{"name": "Milk", "description": 2}')).to.deep.equal({
+				name: 'Milk',
+				description: undefined,
+			});
+		});
+
+		it('explains itself when the JSON names no item', () => {
+			expect(() => parseItemInput('{"description": "2 L"}')).to.throw('"name" string');
+			expect(() => parseItemInput('{not json')).to.throw('not valid JSON');
+		});
+
+		it('does not mistake a name that merely mentions a brace', () => {
+			expect(parseItemInput('Bread {large}')).to.deep.equal({ name: 'Bread {large}' });
+		});
+	});
+
 	describe('runCommand', () => {
 		/** Records which client method a command reached, without any network. */
 		const spyClient = (): { calls: unknown[][]; client: KitchenOwlClient } => {
@@ -116,7 +145,19 @@ describe('commands', () => {
 				noPlan,
 			);
 
-			expect(calls).to.deep.equal([['addShoppingListItemByName', 2, 'Bread']]);
+			expect(calls).to.deep.equal([['addShoppingListItemByName', 2, 'Bread', undefined]]);
+		});
+
+		it('takes a description alongside the name when given JSON', async () => {
+			const { calls, client } = spyClient();
+			await runCommand(
+				context(client),
+				parseCommand('households.1.shoppingLists.2.addItemByName')!,
+				'{"name": "Milk", "description": "2 L"}',
+				noPlan,
+			);
+
+			expect(calls).to.deep.equal([['addShoppingListItemByName', 2, 'Milk', '2 L']]);
 		});
 
 		it('refuses to add an item with a blank name', async () => {

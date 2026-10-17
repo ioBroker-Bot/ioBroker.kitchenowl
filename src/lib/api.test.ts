@@ -85,6 +85,13 @@ describe('KitchenOwlClient', () => {
 		expect(requests[0].url).to.equal('/api/household');
 	});
 
+	it('strips a trailing /api, which KitchenOwl appends itself', async () => {
+		respondJson([]);
+		await client({ url: `${baseUrl}/api/` }).households();
+
+		expect(requests[0].url).to.equal('/api/household');
+	});
+
 	it('builds absolute photo URLs', () => {
 		expect(client().photoUrl('a b.jpg')).to.equal(`${baseUrl}/api/upload/a%20b.jpg`);
 	});
@@ -177,7 +184,7 @@ describe('KitchenOwlClient', () => {
 			expect(error.message).to.contain('not valid JSON');
 		});
 
-		it('times out a request that never answers', async () => {
+		it('times out a request that never answers, and says so', async () => {
 			handler = () => {
 				// Never respond; the client's own timeout has to fire.
 			};
@@ -187,6 +194,27 @@ describe('KitchenOwlClient', () => {
 				.catch((e: unknown) => e)) as Error;
 
 			expect(error).to.be.instanceOf(Error);
+			// "This operation was aborted" would tell nobody what went wrong.
+			expect(error.message).to.contain('timed out after 150 ms');
+		});
+
+		it('retries a rate limit, which passes on its own', async () => {
+			let attempts = 0;
+			handler = (_req, res) => {
+				attempts++;
+				if (attempts === 1) {
+					res.writeHead(429, { 'Content-Type': 'text/plain' });
+					res.end('Too Many Requests');
+					return;
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end('[]');
+			};
+
+			const households = await client({ retries: 2, retryDelay: 1 }).households();
+
+			expect(attempts).to.equal(2);
+			expect(households).to.deep.equal([]);
 		});
 
 		it('refuses to issue requests after being destroyed', async () => {

@@ -19,6 +19,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var ids_exports = {};
 __export(ids_exports, {
   memberId: () => memberId,
+  memberIds: () => memberIds,
   round2: () => round2,
   toId: () => toId,
   toTimestamp: () => toTimestamp
@@ -33,6 +34,20 @@ function toId(value, fallback = "unknown") {
 function memberId(member) {
   return toId(member.username || member.name || "", `user_${member.id}`);
 }
+function memberIds(members) {
+  var _a;
+  const occurrences = /* @__PURE__ */ new Map();
+  for (const member of members) {
+    const segment = memberId(member);
+    occurrences.set(segment, ((_a = occurrences.get(segment)) != null ? _a : 0) + 1);
+  }
+  const segments = /* @__PURE__ */ new Map();
+  for (const member of members) {
+    const segment = memberId(member);
+    segments.set(member.id, occurrences.get(segment) === 1 ? segment : `${segment}_${member.id}`);
+  }
+  return segments;
+}
 function round2(value) {
   return Math.round(value * 100) / 100;
 }
@@ -42,6 +57,7 @@ function toTimestamp(value) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   memberId,
+  memberIds,
   round2,
   toId,
   toTimestamp

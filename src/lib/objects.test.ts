@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import type * as utils from '@iobroker/adapter-core';
 
-import { ObjectWriter } from './objects';
+import { type ObjectCache, ObjectWriter } from './objects';
 
 /** A stored object, kept loose so tests can read `common` without narrowing. */
 export interface StoredObject {
@@ -26,6 +26,10 @@ export class FakeAdapter {
 	public readonly objects = new Map<string, StoredObject>();
 	public readonly states = new Map<string, ioBroker.StateValue>();
 	public readonly warnings: string[] = [];
+	/** Ids read back from the object database, to show what the cache saves. */
+	public readonly reads: string[] = [];
+	/** Ids whose definition was corrected. */
+	public readonly extended: string[] = [];
 	public readonly log = {
 		silly: (): void => {},
 		debug: (): void => {},
@@ -44,6 +48,35 @@ export class FakeAdapter {
 		if (!this.objects.has(id)) {
 			this.objects.set(id, obj as StoredObject);
 		}
+		return Promise.resolve();
+	}
+
+	/**
+	 * @param id - Namespace-relative object id
+	 */
+	public getObjectAsync(id: string): Promise<StoredObject | null> {
+		this.reads.push(id);
+		return Promise.resolve(this.objects.get(id) ?? null);
+	}
+
+	/**
+	 * Merges into the stored object, the way js-controller does.
+	 *
+	 * @param id - Namespace-relative object id
+	 * @param obj - Partial object whose common block is merged in
+	 */
+	public extendObjectAsync(id: string, obj: StoredObject): Promise<void> {
+		const existing = this.objects.get(id);
+		if (!existing) {
+			this.objects.set(id, obj);
+		} else {
+			this.objects.set(id, {
+				...existing,
+				...obj,
+				common: { ...existing.common, ...obj.common },
+			});
+		}
+		this.extended.push(id);
 		return Promise.resolve();
 	}
 
@@ -161,6 +194,97 @@ describe('ObjectWriter', () => {
 		expect(adapter.objects.get('households.1.name')?.common.name).to.equal('Renamed by user');
 		// The value still updates, only the object definition is left alone.
 		expect(adapter.states.get('households.1.name')).to.equal('Second');
+	});
+
+	it("corrects the adapter's own fields on an object that already exists", async () => {
+		writer.state({ id: 'households.1.items.7.description', name: 'Description', type: 'string', role: 'text' });
+		await writer.flush();
+		expect(adapter.objects.get('households.1.items.7.description')?.common.write).to.equal(false);
+
+		// What turning on write access does to the very same state.
+		const second = new ObjectWriter(adapter.asAdapter());
+		second.state({
+			id: 'households.1.items.7.description',
+			name: 'Description',
+			type: 'string',
+			role: 'text',
+			read: true,
+			write: true,
+		});
+		await second.flush();
+
+		expect(adapter.objects.get('households.1.items.7.description')?.common.write).to.equal(true);
+	});
+
+	it('adds a states mapping that a later adapter version introduced', async () => {
+		writer.state({ id: 'households.1.recipes.9.visibility', name: 'Visibility', type: 'number', role: 'value' });
+		await writer.flush();
+
+		const second = new ObjectWriter(adapter.asAdapter());
+		second.state({
+			id: 'households.1.recipes.9.visibility',
+			name: 'Visibility',
+			type: 'number',
+			role: 'value',
+			states: { 0: 'private', 1: 'link', 2: 'public' },
+		});
+		await second.flush();
+
+		expect(adapter.objects.get('households.1.recipes.9.visibility')?.common.states).to.deep.equal({
+			0: 'private',
+			1: 'link',
+			2: 'public',
+		});
+	});
+
+	it('keeps names that come from KitchenOwl out of the translation table', async () => {
+		writer.serverChannel('households.1.shoppingLists.2', 'Items');
+		writer.channel('households.1.shoppingLists.2.items', 'Items');
+		await writer.flush();
+
+		expect(adapter.objects.get('households.1.shoppingLists.2')?.common.name).to.equal('Items');
+		expect(adapter.objects.get('households.1.shoppingLists.2.items')?.common.name).to.deep.equal({
+			en: 'Items',
+			de: 'Artikel',
+		});
+	});
+
+	describe('with a cache shared across polls', () => {
+		let cache: ObjectCache;
+
+		beforeEach(() => {
+			cache = new Map();
+		});
+
+		/**
+		 * One poll's worth of writes against the shared cache.
+		 *
+		 * @param name - Name the server reports for the list this poll
+		 */
+		const poll = async (name: string): Promise<void> => {
+			const run = new ObjectWriter(adapter.asAdapter(), cache);
+			run.serverChannel('households.1.shoppingLists.2', name);
+			run.value('households.1.shoppingLists.2.itemCount', 'Number of items', 'number', 'value', 3);
+			await run.flush();
+		};
+
+		it('reads an object once and leaves the database alone afterwards', async () => {
+			await poll('Groceries');
+			const afterFirst = adapter.reads.length;
+			await poll('Groceries');
+
+			expect(afterFirst).to.be.greaterThan(0);
+			expect(adapter.reads.length).to.equal(afterFirst);
+			// Values are still published on every poll.
+			expect(adapter.states.get('households.1.shoppingLists.2.itemCount')).to.equal(3);
+		});
+
+		it('follows a list renamed in KitchenOwl', async () => {
+			await poll('Groceries');
+			await poll('Weekly shop');
+
+			expect(adapter.objects.get('households.1.shoppingLists.2')?.common.name).to.equal('Weekly shop');
+		});
 	});
 
 	describe('prune', () => {

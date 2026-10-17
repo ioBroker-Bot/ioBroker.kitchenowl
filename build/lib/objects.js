@@ -22,19 +22,25 @@ __export(objects_exports, {
 });
 module.exports = __toCommonJS(objects_exports);
 var import_i18n = require("./i18n");
+const MANAGED_FIELDS = ["type", "role", "read", "write", "unit", "states"];
+function managedFieldsDiffer(existing, desired) {
+  return MANAGED_FIELDS.some((field) => JSON.stringify(existing[field]) !== JSON.stringify(desired[field]));
+}
 class ObjectWriter {
   /**
    * @param adapter - Adapter instance the objects belong to
+   * @param cache - Definitions already applied, shared across polls
    */
-  constructor(adapter) {
+  constructor(adapter, cache = /* @__PURE__ */ new Map()) {
     this.adapter = adapter;
+    this.cache = cache;
   }
   channels = [];
   states = [];
   /** Every id this run touched, used to find objects that disappeared upstream. */
   seen = /* @__PURE__ */ new Set();
   /**
-   * Declares a grouping node.
+   * Declares a grouping node the adapter names itself.
    *
    * @param id - Namespace-relative object id
    * @param name - Human readable name shown in the object tree
@@ -42,6 +48,20 @@ class ObjectWriter {
    */
   channel(id, name, type = "channel") {
     this.channels.push({ id, name, type });
+    this.seen.add(id);
+  }
+  /**
+   * Declares a grouping node whose name comes from KitchenOwl.
+   *
+   * Such a name is stored as it is: running it through the translation table
+   * would rename a shopping list called "Items" to "Artikel".
+   *
+   * @param id - Namespace-relative object id
+   * @param name - Name as KitchenOwl returned it
+   * @param type - Channel, device or folder
+   */
+  serverChannel(id, name, type = "channel") {
+    this.channels.push({ id, name, type, translate: false });
     this.seen.add(id);
   }
   /**
@@ -109,18 +129,18 @@ class ObjectWriter {
   has(id) {
     return this.seen.has(id);
   }
-  /** Creates any missing objects and writes every collected value. */
+  /** Creates missing objects, corrects changed ones and writes every collected value. */
   async flush() {
     var _a, _b, _c;
     for (const channel of this.channels) {
-      await this.adapter.setObjectNotExistsAsync(channel.id, {
+      await this.upsert(channel.id, {
         type: (_a = channel.type) != null ? _a : "channel",
-        common: { name: (0, import_i18n.localize)(channel.name) },
+        common: { name: channel.translate === false ? channel.name : (0, import_i18n.localize)(channel.name) },
         native: {}
       });
     }
     for (const def of this.states) {
-      await this.adapter.setObjectNotExistsAsync(def.id, {
+      await this.upsert(def.id, {
         type: "state",
         common: {
           name: (0, import_i18n.localize)(def.name),
@@ -137,6 +157,37 @@ class ObjectWriter {
         await this.adapter.setStateChangedAsync(def.id, { val: def.value, ack: true });
       }
     }
+  }
+  /**
+   * Creates an object, or brings an existing one in line with the definition.
+   *
+   * @param id - Namespace-relative object id
+   * @param desired - Object as this run wants it to look
+   */
+  async upsert(id, desired) {
+    const signature = JSON.stringify(desired);
+    const applied = this.cache.get(id);
+    if (applied === signature) {
+      return;
+    }
+    if (applied !== void 0) {
+      await this.adapter.extendObjectAsync(id, desired);
+      this.cache.set(id, signature);
+      return;
+    }
+    const existing = await this.adapter.getObjectAsync(id);
+    if (!existing) {
+      await this.adapter.setObjectNotExistsAsync(id, desired);
+      this.cache.set(id, signature);
+      return;
+    }
+    if (existing.type !== desired.type || managedFieldsDiffer(existing.common, desired.common)) {
+      await this.adapter.extendObjectAsync(id, {
+        ...desired,
+        common: { ...desired.common, name: existing.common.name }
+      });
+    }
+    this.cache.set(id, signature);
   }
   /**
    * Deletes objects below `prefix` that this run did not touch.
@@ -167,16 +218,32 @@ class ObjectWriter {
     let deleted = 0;
     for (const id of stale) {
       if (stale.some((other) => other !== id && id.startsWith(`${other}.`) && id.length > other.length)) {
+        this.forget(id);
         continue;
       }
       try {
         await this.adapter.delObjectAsync(id, { recursive: true });
+        this.forget(id);
         deleted++;
       } catch (error) {
         this.adapter.log.warn(`Could not delete stale object ${id}: ${error.message}`);
       }
     }
     return deleted;
+  }
+  /**
+   * Drops a deleted object and its children from the definition cache, so that
+   * a branch that comes back is written out again rather than assumed current.
+   *
+   * @param id - Namespace-relative object id that no longer exists
+   */
+  forget(id) {
+    this.cache.delete(id);
+    for (const cached of this.cache.keys()) {
+      if (cached.startsWith(`${id}.`)) {
+        this.cache.delete(cached);
+      }
+    }
   }
 }
 // Annotate the CommonJS export names for ESM import in node:
