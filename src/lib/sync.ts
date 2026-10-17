@@ -12,6 +12,7 @@ import {
 	type Item,
 	type PlannerEntry,
 	type Recipe,
+	RecipeVisibility,
 	type ShoppingList,
 	type Tag,
 } from './types';
@@ -68,6 +69,22 @@ export interface SlimItem {
 }
 
 /**
+ * Converts KitchenOwl's ARGB integer colour into a CSS hex string.
+ *
+ * The app stores colours as a signed 32 bit ARGB value, which is meaningless
+ * to anything reading the state. The alpha channel is dropped because ioBroker
+ * colour roles expect #RRGGBB.
+ *
+ * @param argb - Colour as the API returns it, if set
+ */
+function argbToHex(argb: number | null | undefined): string {
+	if (typeof argb !== 'number' || !Number.isFinite(argb)) {
+		return '';
+	}
+	return `#${(argb & 0xffffff).toString(16).padStart(6, '0')}`;
+}
+
+/**
  * Reduces an item to the fields worth storing.
  *
  * @param item - Item as the API returned it
@@ -104,7 +121,6 @@ export function syncHousehold(
 ): void {
 	writer.channel(base, household.name, 'device');
 
-	writer.value(`${base}.id`, 'Household ID', 'number', 'value', household.id);
 	writer.value(`${base}.name`, 'Name', 'string', 'text', household.name);
 	writer.value(`${base}.description`, 'Description', 'string', 'text', household.description ?? '');
 	writer.value(`${base}.language`, 'Language', 'string', 'text', household.language ?? '');
@@ -164,7 +180,7 @@ export function syncMembers(writer: ObjectWriter, client: KitchenOwlClient, base
 		writer.value(`${id}.balance`, 'Expense balance', 'number', 'value', round2(member.expense_balance ?? 0));
 		writer.value(`${id}.isHouseholdAdmin`, 'Household administrator', 'boolean', 'indicator', !!member.admin);
 		writer.value(`${id}.isOwner`, 'Household owner', 'boolean', 'indicator', !!member.owner);
-		writer.value(`${id}.lastSeen`, 'Last seen', 'number', 'value.time', toTimestamp(member.last_seen) ?? 0);
+		writer.value(`${id}.lastSeen`, 'Last seen', 'number', 'value.time', toTimestamp(member.last_seen));
 		writer.value(`${id}.photoUrl`, 'Photo URL', 'string', 'text.url', photo(client, member.photo) ?? '');
 	}
 }
@@ -193,7 +209,6 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 		const items = list.items ?? [];
 
 		writer.channel(id, list.name);
-		writer.value(`${id}.id`, 'List ID', 'number', 'value', list.id);
 		writer.value(`${id}.name`, 'Name', 'string', 'text', list.name);
 		writer.value(`${id}.itemCount`, 'Number of items', 'number', 'value', items.length);
 		writer.value(`${id}.itemNames`, 'Items as text', 'string', 'text', items.map(item => item.name).join(', '));
@@ -223,7 +238,6 @@ export function syncShoppingLists(writer: ObjectWriter, base: string, lists: Sho
 			const itemId = `${itemsRoot}.${item.id}`;
 			writer.channel(itemId, item.name);
 
-			writer.value(`${itemId}.id`, 'Item ID', 'number', 'value', item.id);
 			writer.value(`${itemId}.name`, 'Name', 'string', 'text', item.name);
 			writer.value(`${itemId}.category`, 'Category', 'string', 'text', item.category?.name ?? '');
 			writer.value(`${itemId}.icon`, 'Icon key', 'string', 'text', item.icon ?? '');
@@ -301,7 +315,6 @@ export function syncRecipes(
 		const id = `${root}.${recipe.id}`;
 		writer.channel(id, recipe.name);
 
-		writer.value(`${id}.id`, 'Recipe ID', 'number', 'value', recipe.id);
 		writer.value(`${id}.name`, 'Name', 'string', 'text', recipe.name);
 		writer.value(`${id}.description`, 'Description', 'string', 'text', recipe.description ?? '');
 		writer.value(`${id}.time`, 'Total time', 'number', 'value', recipe.time ?? 0, 'min');
@@ -319,7 +332,15 @@ export function syncRecipes(
 		);
 		writer.value(`${id}.planned`, 'Currently planned', 'boolean', 'indicator', !!recipe.planned);
 		writer.json(`${id}.plannedDays`, 'Planned weekdays', recipe.planned_days ?? []);
-		writer.value(`${id}.visibility`, 'Visibility', 'number', 'value', recipe.visibility ?? 0);
+		writer.state({
+			id: `${id}.visibility`,
+			name: 'Visibility',
+			type: 'number',
+			role: 'value',
+			value: recipe.visibility ?? RecipeVisibility.Private,
+			// Without these the admin UI shows a bare 0, 1 or 2.
+			states: { 0: 'private', 1: 'link', 2: 'public' },
+		});
 		writer.json(`${id}.itemsJson`, 'Ingredients', (recipe.items ?? []).map(slimItem));
 	}
 }
@@ -361,7 +382,7 @@ export function syncPlanner(writer: ObjectWriter, base: string, entries: Planner
 		'Next cooking date',
 		'number',
 		'value.time',
-		toTimestamp(upcoming?.cooking_date) ?? 0,
+		toTimestamp(upcoming?.cooking_date),
 	);
 
 	if (config.enableWrite) {
@@ -387,7 +408,7 @@ export function syncPlanner(writer: ObjectWriter, base: string, entries: Planner
 		writer.value(`${id}.recipeId`, 'Recipe ID', 'number', 'value', entry?.recipe_id ?? 0);
 		writer.value(`${id}.recipeName`, 'Recipe name', 'string', 'text', entry?.recipe?.name ?? '');
 		writer.value(`${id}.yields`, 'Servings', 'number', 'value', entry?.yields ?? 0);
-		writer.value(`${id}.date`, 'Cooking date', 'number', 'value.time', toTimestamp(entry?.cooking_date) ?? 0);
+		writer.value(`${id}.date`, 'Cooking date', 'number', 'value.time', toTimestamp(entry?.cooking_date));
 
 		if (config.enableWrite) {
 			writer.button(`${id}.remove`, 'Remove this meal from the plan');
@@ -412,7 +433,12 @@ export function syncExpenses(
 	categories: ExpenseCategory[],
 	overview: ExpenseOverview,
 	config: SyncConfig,
+	memberNames: Map<number, string> = new Map(),
 ): void {
+	/** Falls back to the raw id when the payer is no longer a member. */
+	const payer = (userId: number | undefined): string =>
+		userId === undefined ? '' : (memberNames.get(userId) ?? `#${userId}`);
+
 	const root = `${base}.expenses`;
 	const newest = expenses[0];
 	// Period "0" of the overview is the current one.
@@ -428,7 +454,7 @@ export function syncExpenses(
 			name: expense.name,
 			amount: round2(expense.amount),
 			date: toTimestamp(expense.date),
-			paidById: expense.paid_by_id,
+			paidBy: payer(expense.paid_by_id),
 			category: expense.category?.name ?? null,
 		})),
 	);
@@ -441,8 +467,8 @@ export function syncExpenses(
 
 	writer.value(`${root}.newestName`, 'Newest expense', 'string', 'text', newest?.name ?? '');
 	writer.value(`${root}.newestAmount`, 'Newest expense amount', 'number', 'value', round2(newest?.amount ?? 0));
-	writer.value(`${root}.newestDate`, 'Newest expense date', 'number', 'value.time', toTimestamp(newest?.date) ?? 0);
-	writer.value(`${root}.newestPaidBy`, 'Newest expense paid by user ID', 'number', 'value', newest?.paid_by_id ?? 0);
+	writer.value(`${root}.newestDate`, 'Newest expense date', 'number', 'value.time', toTimestamp(newest?.date));
+	writer.value(`${root}.newestPaidBy`, 'Newest expense paid by', 'string', 'text', payer(newest?.paid_by_id));
 
 	if (config.enableWrite) {
 		writer.state({
@@ -463,10 +489,9 @@ export function syncExpenses(
 		const id = `${categoriesRoot}.${category.id}`;
 		writer.channel(id, category.name);
 
-		writer.value(`${id}.id`, 'Category ID', 'number', 'value', category.id);
 		writer.value(`${id}.name`, 'Name', 'string', 'text', category.name);
 		writer.value(`${id}.budget`, 'Budget', 'number', 'value', category.budget ?? 0);
-		writer.value(`${id}.color`, 'Colour as an ARGB integer', 'number', 'value', category.color ?? 0);
+		writer.value(`${id}.color`, 'Colour', 'string', 'level.color.rgb', argbToHex(category.color));
 		writer.value(
 			`${id}.currentPeriodSum`,
 			'Spent in the current period',

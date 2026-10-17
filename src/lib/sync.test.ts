@@ -266,23 +266,27 @@ describe('sync', () => {
 
 			expect(adapter.states.get('households.1.planner.count')).to.equal(0);
 			expect(adapter.states.get('households.1.planner.nextRecipeName')).to.equal('');
-			expect(adapter.states.get('households.1.planner.nextCookingDate')).to.equal(0);
+			expect(adapter.states.get('households.1.planner.nextCookingDate')).to.equal(null);
 		});
 	});
 
 	describe('syncExpenses', () => {
+		/** Mirrors the id-to-name map main.ts builds from the household. */
+		const memberNames = (): Map<number, string> =>
+			new Map((household().member ?? []).map(m => [m.id, m.name]));
+
 		const expenses = (): Expense[] => fixture<Expense[]>('expenses');
 		const categories = (): ExpenseCategory[] => fixture<ExpenseCategory[]>('expense-categories');
 		const overview = (): ExpenseOverview => fixture<ExpenseOverview>('expense-overview');
 
 		it('writes the newest expense and the period total', async () => {
-			syncExpenses(writer, base(), expenses(), categories(), overview(), config());
+			syncExpenses(writer, base(), expenses(), categories(), overview(), config(), memberNames());
 			await writer.flush();
 
 			expect(adapter.states.get('households.1.expenses.count')).to.equal(2);
 			expect(adapter.states.get('households.1.expenses.newestName')).to.equal('Weekly shop');
 			expect(adapter.states.get('households.1.expenses.newestAmount')).to.equal(42.5);
-			expect(adapter.states.get('households.1.expenses.newestPaidBy')).to.equal(1);
+			expect(adapter.states.get('households.1.expenses.newestPaidBy')).to.equal('Alice Example');
 			// 42.50 booked to a category plus 18.00 uncategorised.
 			expect(adapter.states.get('households.1.expenses.currentPeriodTotal')).to.equal(60.5);
 		});

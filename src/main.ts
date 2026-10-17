@@ -165,6 +165,8 @@ class Kitchenowl extends utils.Adapter {
 		}
 
 		if (config.syncExpenses && household.expenses_feature) {
+			// Expenses reference members by id; the names live on the household.
+			const memberNames = new Map((household.member ?? []).map(member => [member.id, member.name]));
 			const [expenses, categories, overview] = await Promise.all([
 				client.expenses(household.id, config.expenseView, config.expensePages),
 				client.expenseCategories(household.id),
@@ -175,7 +177,7 @@ class Kitchenowl extends utils.Adapter {
 					config.expenseView,
 				),
 			]);
-			syncExpenses(writer, base, expenses, categories, overview, config);
+			syncExpenses(writer, base, expenses, categories, overview, config, memberNames);
 		}
 
 		if (config.syncCatalog) {

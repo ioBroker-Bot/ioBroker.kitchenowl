@@ -128,6 +128,7 @@ class Kitchenowl extends utils.Adapter {
    * @param household - Household being written
    */
   async syncOneHousehold(writer, household) {
+    var _a;
     const client = this.client;
     const base = (0, import_sync.householdBase)(household);
     const config = this.syncConfig();
@@ -147,6 +148,7 @@ class Kitchenowl extends utils.Adapter {
       (0, import_sync.syncPlanner)(writer, base, entries, config);
     }
     if (config.syncExpenses && household.expenses_feature) {
+      const memberNames = new Map(((_a = household.member) != null ? _a : []).map((member) => [member.id, member.name]));
       const [expenses, categories, overview] = await Promise.all([
         client.expenses(household.id, config.expenseView, config.expensePages),
         client.expenseCategories(household.id),
@@ -157,7 +159,7 @@ class Kitchenowl extends utils.Adapter {
           config.expenseView
         )
       ]);
-      (0, import_sync.syncExpenses)(writer, base, expenses, categories, overview, config);
+      (0, import_sync.syncExpenses)(writer, base, expenses, categories, overview, config, memberNames);
     }
     if (config.syncCatalog) {
       const [items, categories, tags] = await Promise.all([

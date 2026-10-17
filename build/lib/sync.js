@@ -29,9 +29,16 @@ __export(sync_exports, {
 });
 module.exports = __toCommonJS(sync_exports);
 var import_ids = require("./ids");
+var import_types = require("./types");
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 function photo(client, filename) {
   return filename ? client.photoUrl(filename) : null;
+}
+function argbToHex(argb) {
+  if (typeof argb !== "number" || !Number.isFinite(argb)) {
+    return "";
+  }
+  return `#${(argb & 16777215).toString(16).padStart(6, "0")}`;
 }
 function slimItem(item) {
   var _a, _b, _c;
@@ -52,7 +59,6 @@ function slimItem(item) {
 function syncHousehold(writer, client, base, household) {
   var _a, _b, _c, _d, _e, _f;
   writer.channel(base, household.name, "device");
-  writer.value(`${base}.id`, "Household ID", "number", "value", household.id);
   writer.value(`${base}.name`, "Name", "string", "text", household.name);
   writer.value(`${base}.description`, "Description", "string", "text", (_a = household.description) != null ? _a : "");
   writer.value(`${base}.language`, "Language", "string", "text", (_b = household.language) != null ? _b : "");
@@ -81,7 +87,7 @@ function syncHousehold(writer, client, base, household) {
   writer.json(`${base}.viewOrdering`, "Configured view order", (_f = household.view_ordering) != null ? _f : []);
 }
 function syncMembers(writer, client, base, household) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c;
   const members = (_a = household.member) != null ? _a : [];
   const root = `${base}.members`;
   writer.channel(root, "Household members");
@@ -103,8 +109,8 @@ function syncMembers(writer, client, base, household) {
     writer.value(`${id}.balance`, "Expense balance", "number", "value", (0, import_ids.round2)((_b = member.expense_balance) != null ? _b : 0));
     writer.value(`${id}.isHouseholdAdmin`, "Household administrator", "boolean", "indicator", !!member.admin);
     writer.value(`${id}.isOwner`, "Household owner", "boolean", "indicator", !!member.owner);
-    writer.value(`${id}.lastSeen`, "Last seen", "number", "value.time", (_c = (0, import_ids.toTimestamp)(member.last_seen)) != null ? _c : 0);
-    writer.value(`${id}.photoUrl`, "Photo URL", "string", "text.url", (_d = photo(client, member.photo)) != null ? _d : "");
+    writer.value(`${id}.lastSeen`, "Last seen", "number", "value.time", (0, import_ids.toTimestamp)(member.last_seen));
+    writer.value(`${id}.photoUrl`, "Photo URL", "string", "text.url", (_c = photo(client, member.photo)) != null ? _c : "");
   }
 }
 function syncShoppingLists(writer, base, lists, config) {
@@ -124,7 +130,6 @@ function syncShoppingLists(writer, base, lists, config) {
     const id = `${root}.${list.id}`;
     const items = (_a = list.items) != null ? _a : [];
     writer.channel(id, list.name);
-    writer.value(`${id}.id`, "List ID", "number", "value", list.id);
     writer.value(`${id}.name`, "Name", "string", "text", list.name);
     writer.value(`${id}.itemCount`, "Number of items", "number", "value", items.length);
     writer.value(`${id}.itemNames`, "Items as text", "string", "text", items.map((item) => item.name).join(", "));
@@ -149,7 +154,6 @@ function syncShoppingLists(writer, base, lists, config) {
     for (const item of items) {
       const itemId = `${itemsRoot}.${item.id}`;
       writer.channel(itemId, item.name);
-      writer.value(`${itemId}.id`, "Item ID", "number", "value", item.id);
       writer.value(`${itemId}.name`, "Name", "string", "text", item.name);
       writer.value(`${itemId}.category`, "Category", "string", "text", (_d = (_c = item.category) == null ? void 0 : _c.name) != null ? _d : "");
       writer.value(`${itemId}.icon`, "Icon key", "string", "text", (_e = item.icon) != null ? _e : "");
@@ -208,7 +212,6 @@ function syncRecipes(writer, client, base, recipes, config) {
   for (const recipe of recipes) {
     const id = `${root}.${recipe.id}`;
     writer.channel(id, recipe.name);
-    writer.value(`${id}.id`, "Recipe ID", "number", "value", recipe.id);
     writer.value(`${id}.name`, "Name", "string", "text", recipe.name);
     writer.value(`${id}.description`, "Description", "string", "text", (_a = recipe.description) != null ? _a : "");
     writer.value(`${id}.time`, "Total time", "number", "value", (_b = recipe.time) != null ? _b : 0, "min");
@@ -226,12 +229,20 @@ function syncRecipes(writer, client, base, recipes, config) {
     );
     writer.value(`${id}.planned`, "Currently planned", "boolean", "indicator", !!recipe.planned);
     writer.json(`${id}.plannedDays`, "Planned weekdays", (_i = recipe.planned_days) != null ? _i : []);
-    writer.value(`${id}.visibility`, "Visibility", "number", "value", (_j = recipe.visibility) != null ? _j : 0);
+    writer.state({
+      id: `${id}.visibility`,
+      name: "Visibility",
+      type: "number",
+      role: "value",
+      value: (_j = recipe.visibility) != null ? _j : import_types.RecipeVisibility.Private,
+      // Without these the admin UI shows a bare 0, 1 or 2.
+      states: { 0: "private", 1: "link", 2: "public" }
+    });
     writer.json(`${id}.itemsJson`, "Ingredients", ((_k = recipe.items) != null ? _k : []).map(slimItem));
   }
 }
 function syncPlanner(writer, base, entries, config) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g;
   const root = `${base}.planner`;
   writer.channel(root, "Meal planner");
   writer.value(`${root}.count`, "Number of planned meals", "number", "value", entries.length);
@@ -260,7 +271,7 @@ function syncPlanner(writer, base, entries, config) {
     "Next cooking date",
     "number",
     "value.time",
-    (_d = (0, import_ids.toTimestamp)(upcoming == null ? void 0 : upcoming.cooking_date)) != null ? _d : 0
+    (0, import_ids.toTimestamp)(upcoming == null ? void 0 : upcoming.cooking_date)
   );
   if (config.enableWrite) {
     writer.state({
@@ -278,17 +289,21 @@ function syncPlanner(writer, base, entries, config) {
     const id = `${daysRoot}.${day}`;
     const entry = entries.find((candidate) => candidate.day === day);
     writer.channel(id, WEEKDAYS[day]);
-    writer.value(`${id}.recipeId`, "Recipe ID", "number", "value", (_e = entry == null ? void 0 : entry.recipe_id) != null ? _e : 0);
-    writer.value(`${id}.recipeName`, "Recipe name", "string", "text", (_g = (_f = entry == null ? void 0 : entry.recipe) == null ? void 0 : _f.name) != null ? _g : "");
-    writer.value(`${id}.yields`, "Servings", "number", "value", (_h = entry == null ? void 0 : entry.yields) != null ? _h : 0);
-    writer.value(`${id}.date`, "Cooking date", "number", "value.time", (_i = (0, import_ids.toTimestamp)(entry == null ? void 0 : entry.cooking_date)) != null ? _i : 0);
+    writer.value(`${id}.recipeId`, "Recipe ID", "number", "value", (_d = entry == null ? void 0 : entry.recipe_id) != null ? _d : 0);
+    writer.value(`${id}.recipeName`, "Recipe name", "string", "text", (_f = (_e = entry == null ? void 0 : entry.recipe) == null ? void 0 : _e.name) != null ? _f : "");
+    writer.value(`${id}.yields`, "Servings", "number", "value", (_g = entry == null ? void 0 : entry.yields) != null ? _g : 0);
+    writer.value(`${id}.date`, "Cooking date", "number", "value.time", (0, import_ids.toTimestamp)(entry == null ? void 0 : entry.cooking_date));
     if (config.enableWrite) {
       writer.button(`${id}.remove`, "Remove this meal from the plan");
     }
   }
 }
-function syncExpenses(writer, base, expenses, categories, overview, config) {
-  var _a, _b, _c, _d, _e, _f, _g;
+function syncExpenses(writer, base, expenses, categories, overview, config, memberNames = /* @__PURE__ */ new Map()) {
+  var _a, _b, _c, _d;
+  const payer = (userId) => {
+    var _a2;
+    return userId === void 0 ? "" : (_a2 = memberNames.get(userId)) != null ? _a2 : `#${userId}`;
+  };
   const root = `${base}.expenses`;
   const newest = expenses[0];
   const currentPeriod = overview["0"];
@@ -304,7 +319,7 @@ function syncExpenses(writer, base, expenses, categories, overview, config) {
         name: expense.name,
         amount: (0, import_ids.round2)(expense.amount),
         date: (0, import_ids.toTimestamp)(expense.date),
-        paidById: expense.paid_by_id,
+        paidBy: payer(expense.paid_by_id),
         category: (_b2 = (_a2 = expense.category) == null ? void 0 : _a2.name) != null ? _b2 : null
       };
     })
@@ -314,8 +329,8 @@ function syncExpenses(writer, base, expenses, categories, overview, config) {
   writer.value(`${root}.currentPeriodTotal`, "Total spent in the current period", "number", "value", currentTotal);
   writer.value(`${root}.newestName`, "Newest expense", "string", "text", (_a = newest == null ? void 0 : newest.name) != null ? _a : "");
   writer.value(`${root}.newestAmount`, "Newest expense amount", "number", "value", (0, import_ids.round2)((_b = newest == null ? void 0 : newest.amount) != null ? _b : 0));
-  writer.value(`${root}.newestDate`, "Newest expense date", "number", "value.time", (_c = (0, import_ids.toTimestamp)(newest == null ? void 0 : newest.date)) != null ? _c : 0);
-  writer.value(`${root}.newestPaidBy`, "Newest expense paid by user ID", "number", "value", (_d = newest == null ? void 0 : newest.paid_by_id) != null ? _d : 0);
+  writer.value(`${root}.newestDate`, "Newest expense date", "number", "value.time", (0, import_ids.toTimestamp)(newest == null ? void 0 : newest.date));
+  writer.value(`${root}.newestPaidBy`, "Newest expense paid by", "string", "text", payer(newest == null ? void 0 : newest.paid_by_id));
   if (config.enableWrite) {
     writer.state({
       id: `${root}.add`,
@@ -332,16 +347,15 @@ function syncExpenses(writer, base, expenses, categories, overview, config) {
   for (const category of categories) {
     const id = `${categoriesRoot}.${category.id}`;
     writer.channel(id, category.name);
-    writer.value(`${id}.id`, "Category ID", "number", "value", category.id);
     writer.value(`${id}.name`, "Name", "string", "text", category.name);
-    writer.value(`${id}.budget`, "Budget", "number", "value", (_e = category.budget) != null ? _e : 0);
-    writer.value(`${id}.color`, "Colour as an ARGB integer", "number", "value", (_f = category.color) != null ? _f : 0);
+    writer.value(`${id}.budget`, "Budget", "number", "value", (_c = category.budget) != null ? _c : 0);
+    writer.value(`${id}.color`, "Colour", "string", "level.color.rgb", argbToHex(category.color));
     writer.value(
       `${id}.currentPeriodSum`,
       "Spent in the current period",
       "number",
       "value",
-      (0, import_ids.round2)((_g = currentPeriod == null ? void 0 : currentPeriod.by_category[String(category.id)]) != null ? _g : 0)
+      (0, import_ids.round2)((_d = currentPeriod == null ? void 0 : currentPeriod.by_category[String(category.id)]) != null ? _d : 0)
     );
   }
   const uncategorized = currentPeriod == null ? void 0 : currentPeriod.by_category["-1"];
