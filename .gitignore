@@ -7,9 +7,6 @@
 node_modules
 nbproject
 
-# Compiled output; CI and the release script build it from src/
-build/
-
 # npm package files
 iobroker.*.tgz
 
